@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0F7A6B"/>
+  <text x="256" y="300" font-family="'Hiragino Sans','Noto Sans JP',sans-serif" font-size="204" font-weight="600" fill="#FFFFFF" text-anchor="middle">話</text>
+  <circle cx="368" cy="164" r="42" fill="#E3F0ED"/>
+  <text x="368" y="184" font-family="-apple-system,'Segoe UI',sans-serif" font-size="54" font-weight="700" fill="#0B5A4E" text-anchor="middle">A</text>
+</svg>

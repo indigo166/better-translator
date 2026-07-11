@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#0F7A6B">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Better Translator — prototype</title>
+<style>
+  :root{
+    --paper:#FAF8F3; --ink:#23201B; --muted:#8A8378; --card:#FFFFFF; --line:#EBE6DC;
+    --acc:#0F7A6B; --acc-ink:#0B5A4E; --acc-soft:#E3F0ED;
+    --wb:#EFF5F2; --wb-line:#CFE6DD;
+    --amber-soft:#FAEEDA; --amber-ink:#854F0B;
+    --shadow:0 6px 24px rgba(0,0,0,.08);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#17150F; --ink:#F0EBE1; --muted:#9A9385; --card:#221F19; --line:#322E27;
+      --acc:#4FB3A2; --acc-ink:#9FE1CB; --acc-soft:#123029;
+      --wb:#161E1A; --wb-line:#22362F;
+      --amber-soft:#3A2A0F; --amber-ink:#FAC775;
+      --shadow:0 6px 24px rgba(0,0,0,.4);
+    }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{ background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif; display:flex; justify-content:center; align-items:stretch; }
+  ruby rt{font-size:.62em; color:var(--muted); font-weight:400;}
+  .app{ width:100%; max-width:430px; height:100dvh; background:var(--paper); display:flex; flex-direction:column; position:relative; overflow:hidden; border-left:0.5px solid var(--line); border-right:0.5px solid var(--line); }
+  .view{display:none; flex-direction:column; flex:1; min-height:0;}
+  .view.on{display:flex;}
+  .hdr{display:flex; align-items:center; gap:11px; padding:14px 15px; border-bottom:0.5px solid var(--line);}
+  .av{width:34px; height:34px; border-radius:50%; background:var(--acc-soft); color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; flex-shrink:0;}
+  .hdr .nm{font-size:15px; font-weight:600;}
+  .chip{display:inline-flex; align-items:center; gap:6px; font-size:12px; padding:3px 10px; border-radius:20px; background:var(--acc-soft); color:var(--acc-ink); border:none; cursor:pointer;}
+  .chip .dot{width:6px; height:6px; border-radius:50%; background:var(--acc);}
+  .backbtn{background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; padding:0 2px; line-height:1;}
+  .menubtn{background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:0 4px;}
+  .rows{flex:1; overflow-y:auto;}
+  .row{display:flex; gap:11px; padding:13px 15px; border-bottom:0.5px solid var(--line); align-items:center; cursor:pointer;}
+  .row:hover{background:var(--card);}
+  .row .prev{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;}
+  .row .meta{text-align:right; flex-shrink:0;}
+  .rowchip{display:inline-flex; align-items:center; gap:4px; font-size:10.5px; padding:2px 8px; border-radius:20px; background:var(--acc-soft); color:var(--acc-ink);}
+  .row .tm{font-size:10px; color:var(--muted); margin-top:3px;}
+  .archhdr{font-size:11px; color:var(--muted); padding:12px 15px 6px; cursor:pointer;}
+  .fab{position:absolute; right:16px; bottom:136px; width:50px; height:50px; border-radius:50%; background:var(--acc); color:#fff; border:none; font-size:26px; cursor:pointer; box-shadow:var(--shadow); z-index:5;}
+  .thread{flex:1; overflow-y:auto; padding:16px 13px 6px; display:flex; flex-direction:column; gap:11px;}
+  .seg{align-self:center; font-size:11px; color:var(--muted); background:var(--wb); padding:3px 12px; border-radius:20px;}
+  .who{font-size:10.5px; margin-bottom:3px; display:flex; align-items:center; gap:5px;}
+  .who .cd{width:7px; height:7px; border-radius:50%;}
+  .who .tm{color:var(--muted); font-size:10px;}
+  .bub{max-width:100%; padding:9px 12px; border-radius:16px; font-size:15px; line-height:1.55; position:relative; cursor:pointer; white-space:pre-wrap;}
+  .bub.them{background:var(--card); border:0.5px solid var(--line);}
+  .bub.me{background:var(--acc-soft); color:var(--acc-ink);}
+  .bub .sub{font-size:11px; color:var(--muted); margin-top:4px;}
+  .msgwrap{display:flex; flex-direction:column; max-width:82%;}
+  .msgwrap.me{align-self:flex-end; align-items:flex-end;}
+  .msgwrap.them{align-self:flex-start; align-items:flex-start;}
+  .actbar{display:flex; gap:6px; margin-top:5px; flex-wrap:wrap;}
+  .actbar button{font-size:11px; padding:4px 10px; border-radius:14px; border:0.5px solid var(--line); background:var(--card); color:var(--muted); cursor:pointer;}
+  .actbar button.danger{color:#B4413E;}
+  .selchip{position:absolute; z-index:30; display:flex; gap:6px;}
+  .selchip button{font-size:12px; padding:6px 12px; border-radius:18px; background:var(--acc); color:#fff; border:none; cursor:pointer; box-shadow:var(--shadow);}
+  .composer{border-top:0.5px solid var(--line); padding:9px 12px 14px;}
+  .spkrow{display:flex; align-items:center; gap:8px; padding-bottom:8px;}
+  .spkchip{display:inline-flex; align-items:center; gap:7px; font-size:12px; padding:5px 11px; border-radius:20px; background:var(--card); border:0.5px solid var(--line); cursor:pointer;}
+  .spkchip .av{width:20px;height:20px;font-size:10px;}
+  .demos{display:flex; gap:7px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none;}
+  .demos::-webkit-scrollbar{display:none;}
+  .demo{white-space:nowrap; font-size:12px; color:var(--muted); background:var(--card); border:0.5px solid var(--line); border-radius:20px; padding:5px 11px; cursor:pointer;}
+  .inrow{display:flex; align-items:flex-end; gap:9px; background:var(--card); border:0.5px solid var(--line); border-radius:22px; padding:6px 8px 6px 14px;}
+  .inrow textarea{flex:1; border:none; background:none; resize:none; color:var(--ink); font:inherit; font-size:15px; line-height:1.4; max-height:110px; padding:5px 0; outline:none;}
+  .inrow textarea::placeholder{color:var(--muted);}
+  .send{width:38px; height:38px; border-radius:50%; background:var(--acc); color:#fff; border:none; display:flex; align-items:center; justify-content:center; font-size:19px; cursor:pointer; flex-shrink:0;}
+  .send:disabled{opacity:.4;}
+  .wbtab{text-align:center; font-size:12px; color:var(--muted); margin-top:9px; cursor:pointer;}
+  .scrim{position:absolute; inset:0; background:rgba(0,0,0,.32); display:none; align-items:flex-end; z-index:20;}
+  .scrim.on{display:flex;}
+  .sheet{width:100%; background:var(--paper); border-radius:20px 20px 0 0; box-shadow:var(--shadow); max-height:92%; display:flex; flex-direction:column; animation:up .22s ease;}
+  @keyframes up{from{transform:translateY(30px); opacity:.6;} to{transform:none; opacity:1;}}
+  .sheet .sh-hd{display:flex; align-items:center; gap:8px; padding:15px 16px 6px;}
+  .sheet .sh-hd .t{font-size:16px; font-weight:600; flex:1;}
+  .sh-body{overflow-y:auto; padding:6px 16px 4px; display:flex; flex-direction:column; gap:13px;}
+  .lbl{font-size:11px; color:var(--muted); margin-bottom:3px;}
+  .src{font-size:14px; color:var(--muted); line-height:1.45;}
+  .jp{font-size:19px; line-height:1.85;}
+  .back{border-left:2px solid var(--line); padding-left:11px;}
+  .back .txt{font-size:13px; color:var(--muted); line-height:1.45;}
+  .flag{display:flex; gap:8px; font-size:13px; padding:9px 11px; border-radius:11px; line-height:1.45;}
+  .flag.warn{background:var(--amber-soft); color:var(--amber-ink);}
+  .flag.ok{background:var(--acc-soft); color:var(--acc-ink);}
+  .sh-actions{display:flex; gap:10px; padding:12px 16px 18px;}
+  .btn{flex:1; text-align:center; font-size:14px; padding:12px; border-radius:22px; cursor:pointer; border:0.5px solid var(--line); background:none; color:var(--muted);}
+  .btn.primary{flex:1.4; background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600;}
+  .regsheet{position:absolute; inset:0; background:rgba(0,0,0,.32); display:none; align-items:flex-end; z-index:25;}
+  .regsheet.on{display:flex;}
+  #talkSheet{background:rgba(0,0,0,.04);}  /* in-person: keep the conversation readable behind the panel */
+  .regcard{width:100%; background:var(--paper); border-radius:20px 20px 0 0; padding:16px; box-shadow:var(--shadow); max-height:90%; overflow-y:auto;}
+  .segbtns{display:flex; border:0.5px solid var(--line); border-radius:12px; overflow:hidden; margin:8px 0 4px;}
+  .segbtns button{flex:1; padding:11px 0; font-size:13px; border:none; background:var(--card); color:var(--muted); cursor:pointer;}
+  .segbtns button.on{background:var(--acc); color:#fff; font-weight:600;}
+  .segbtns button+button{border-left:0.5px solid var(--line);}
+  .setrow{margin-bottom:12px;}
+  .setrow input, .setrow textarea{width:100%; border:0.5px solid var(--line); background:var(--card); border-radius:10px; padding:10px 12px; color:var(--ink); font:inherit; font-size:14px; outline:none; resize:none;}
+  .pick{display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:0.5px solid var(--line); cursor:pointer;}
+  .pick .cb{width:20px; height:20px; border-radius:6px; border:1.5px solid var(--line); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px;}
+  .pick.on .cb{background:var(--acc); border-color:var(--acc);}
+  .pick .edit{margin-left:auto; font-size:12px; color:var(--acc);}
+  .menuitem{display:flex; align-items:center; gap:10px; padding:13px 6px; border-bottom:0.5px solid var(--line); font-size:14px; cursor:pointer;}
+  .menuitem.danger{color:#B4413E;}
+  .swatches{display:flex; gap:9px; flex-wrap:wrap; margin:6px 0 4px;}
+  .sw{width:30px; height:30px; border-radius:50%; cursor:pointer; border:2px solid transparent;}
+  .sw.on{border-color:var(--ink);}
+  .mdbox{white-space:pre-wrap; font-family:ui-monospace,Menlo,monospace; font-size:12.5px; line-height:1.6; background:var(--card); border:0.5px solid var(--line); border-radius:10px; padding:12px; color:var(--ink);}
+  .prow{display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:0.5px solid var(--line);}
+  .prow .x{margin-left:auto; color:#B4413E; font-size:18px; cursor:pointer;}
+  .wb{position:absolute; left:0; right:0; bottom:0; height:74%; background:var(--wb); border-top:1px solid var(--wb-line); border-radius:18px 18px 0 0; box-shadow:var(--shadow); z-index:15; display:none; flex-direction:column;}
+  .wb.on{display:flex; animation:up .25s ease;}
+  .wb-hd{display:flex; align-items:center; gap:8px; padding:13px 15px 9px;}
+  .wb-hd .t{font-size:14px; font-weight:600; flex:1;}
+  .wb-hd .sub{font-size:11px; color:var(--muted);}
+  .wb-acts{display:flex; gap:7px; padding:0 15px 10px; flex-wrap:wrap;}
+  .qa{font-size:12px; padding:6px 12px; border-radius:20px; background:var(--card); border:0.5px solid var(--wb-line); color:var(--acc-ink); cursor:pointer;}
+  .wb-thread{flex:1; overflow-y:auto; padding:2px 15px 10px; display:flex; flex-direction:column; gap:9px;}
+  .wb-you{align-self:flex-end; font-size:14px; background:var(--card); border:0.5px solid var(--line); padding:8px 11px; border-radius:14px; max-width:84%;}
+  .wb-ai{align-self:flex-start; font-size:13.5px; line-height:1.55; background:var(--card); border:0.5px solid var(--line); padding:9px 11px; border-radius:14px; max-width:90%;}
+  .wb-role{font-size:10px; color:var(--muted); margin-bottom:2px;}
+  .wb-in{display:flex; align-items:center; gap:9px; padding:10px 14px 14px; border-top:0.5px solid var(--wb-line);}
+  .wb-in input{flex:1; border:none; background:var(--card); border:0.5px solid var(--wb-line); border-radius:20px; padding:9px 13px; color:var(--ink); font:inherit; font-size:14px; outline:none;}
+  .wb-in button{width:34px; height:34px; border-radius:50%; background:var(--acc); color:#fff; border:none; font-size:17px; cursor:pointer;}
+  .ic{width:1em; height:1em; display:inline-block; vertical-align:-2px;}
+  .spinner{width:22px; height:22px; border:2.5px solid var(--line); border-top-color:var(--acc); border-radius:50%; animation:rot .8s linear infinite; margin:16px auto;}
+  @keyframes rot{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="view on" id="viewChats">
+    <div class="hdr"><div style="flex:1"><div style="font-size:18px;font-weight:600;">Chats</div></div><button class="chip" id="setBtn" style="background:var(--wb); color:var(--muted);">⚙ AI: demo</button></div>
+    <div class="rows" id="rows"></div>
+    <button class="fab" id="fab">＋</button>
+    <div id="selBar" style="display:none; gap:8px; padding:9px 12px; border-top:0.5px solid var(--line); align-items:center;">
+      <span class="lbl" id="selCount" style="margin:0;flex:1;">0 selected</span>
+      <button class="chip" id="selArchive">🗄 archive</button>
+      <button class="chip" id="selMerge">🔀 merge</button>
+      <button class="chip" id="selDelete" style="color:#B4413E;">🗑 delete</button>
+      <button class="chip" id="selCancel" style="background:none;color:var(--muted);">✕ cancel</button>
+    </div>
+    <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
+      <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
+    </div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v17 · saved on this device</div>
+  </div>
+
+  <div class="view" id="viewConvo">
+    <div class="hdr">
+      <button class="backbtn" id="backBtn">‹</button>
+      <div class="av" id="cAv">母</div>
+      <div style="flex:1;min-width:0;"><div class="nm" id="cName" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">…</div><button class="chip" id="regChip"><span class="dot"></span><span id="regLabel">敬語 · keigo</span></button></div>
+      <button class="menubtn" id="menuBtn">⋮</button>
+    </div>
+    <div id="pinsBar" style="display:none; gap:6px; overflow-x:auto; padding:7px 13px; border-bottom:0.5px solid var(--line); scrollbar-width:none;"></div>
+    <div class="thread" id="thread"></div>
+    <div class="composer">
+      <div class="spkrow"><span class="lbl" id="spkLabel" style="margin:0">Speaking</span><div id="spkInline" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;overflow-x:auto;"></div></div>
+      <div class="demos" id="demos"></div>
+      <div class="inrow"><textarea id="input" rows="1" placeholder="Say it in English…"></textarea><button class="send" id="micBtn" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="send" disabled>↑</button></div>
+      <div class="wbtab" id="wbOpen2">⌃ ask the AI about this chat</div>
+    </div>
+  </div>
+
+  <div class="scrim" id="scrim"><div class="sheet">
+    <div class="sh-hd"><span class="ic" style="color:var(--acc)">◇</span><div class="t" id="reviewTitle">Before you send</div><button class="chip" style="background:none;color:var(--muted)" id="reviewClose">✕</button></div>
+    <div class="sh-body" id="reviewBody"></div>
+    <div class="sh-actions"><button class="btn" id="redo">↻ Redo</button><button class="btn primary" id="sendIt">Send it</button></div>
+  </div></div>
+
+  <div class="scrim" id="editScrim"><div class="sheet">
+    <div class="sh-hd"><span class="ic" style="color:var(--acc)">✎</span><div class="t" id="editTitle">Edit message</div><button class="chip" style="background:none;color:var(--muted)" id="editClose">✕</button></div>
+    <div class="sh-body" id="editBody"></div>
+    <div class="sh-actions"><button class="btn" id="editGo">Recompose</button><button class="btn primary" id="editApply" style="display:none;">Replace message</button></div>
+  </div></div>
+
+  <div class="regsheet" id="regSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Register</div><div class="lbl">Speech level — saved for this chat</div>
+    <div class="segbtns" id="segbtns"><button data-r="casual">タメ口 casual</button><button data-r="polite">です・ます</button><button data-r="keigo">敬語 keigo</button></div>
+    <div style="text-align:center;margin-top:12px;"><button class="btn primary" id="regDone" style="flex:none;padding:11px 40px;">Done</button></div>
+  </div></div>
+
+  <div class="regsheet" id="spkSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Who's talking?</div>
+    <div class="lbl">Pass the phone — pick who's speaking. If they read Japanese, the app + the whole thread switch to Japanese.</div>
+    <div id="spkList"></div>
+  </div></div>
+
+  <div class="regsheet" id="setSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">AI engine <span class="lbl" style="font-weight:400;">· proto v7</span></div>
+    <div class="lbl">Provider</div><div class="segbtns" id="provbtns"><button data-p="gemini">Gemini (free tier)</button><button data-p="claude">Claude</button></div>
+    <div class="setrow" style="margin-top:10px;"><div class="lbl">API key — stays on this device only</div><input id="setKey" type="password" placeholder="paste your key…" autocomplete="off"></div>
+    <div class="setrow"><div class="lbl">Model</div><input id="setModel" autocomplete="off"></div>
+    <div class="setrow"><div class="lbl">OpenAI key (optional — Whisper dictation, the same engine as ChatGPT's mic)</div><input id="setOaKey" type="password" placeholder="sk-… (blank = dictate via Gemini)" autocomplete="off"></div>
+    <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:8px;">No key = demo mode. Dictation records real audio and transcribes with Whisper (if OpenAI key) or Gemini — every recording is saved first, so nothing is lost to a network error. Wispr Flow / system dictation also works: focus any text box and dictate.</div>
+    <div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="chip" id="dictHistBtn" style="background:var(--wb);color:var(--muted);">🎙 Dictation history</button><button class="chip" id="exportBtn" style="background:var(--wb);color:var(--muted);">⬇ Export data</button><button class="chip" id="importDataBtn" style="background:var(--wb);color:var(--muted);">⬆ Restore backup</button></div>
+    <input type="file" id="importDataFile" accept=".json,application/json" style="display:none;">
+    <div style="display:flex;gap:10px;justify-content:center;"><button class="btn" id="resetData" style="flex:none;padding:11px 20px;">Reset chat data</button><button class="btn primary" id="setDone" style="flex:none;padding:11px 40px;">Save</button></div>
+  </div></div>
+
+  <div class="regsheet" id="newSheet"><div class="regcard">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;"><div style="font-size:15px;font-weight:600;flex:1;">New conversation</div><button class="chip" id="newImportBtn" style="background:var(--wb);color:var(--muted);">⇩ import a chat</button></div>
+    <div class="menuitem" id="quickTalk" style="color:var(--acc);">🎙 In-person now — interpret a live conversation</div>
+    <div class="lbl" style="margin-top:8px;">Pick one person, or several for a group</div>
+    <div id="pickList"></div>
+    <div class="menuitem" id="newPersonBtn" style="border-bottom:none;color:var(--acc);">＋ New person…</div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:8px;"><button class="btn" id="newCancel" style="flex:none;padding:11px 24px;">Cancel</button><button class="btn primary" id="newStart" style="flex:none;padding:11px 32px;">Start</button></div>
+  </div></div>
+
+  <div class="regsheet" id="personSheet"><div class="regcard">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="font-size:15px;font-weight:600;flex:1;" id="personTitle">New person</div><button class="chip" id="mdBtn" style="background:var(--wb);color:var(--muted);">view .md</button></div>
+    <div style="display:flex;gap:12px;align-items:flex-start;"><div class="av" id="pAvPreview" style="width:48px;height:48px;font-size:20px;">?</div><div style="flex:1;">
+      <div class="setrow" style="margin-bottom:8px;"><div class="lbl">Name</div><input id="pName" autocomplete="off" placeholder="e.g. Yuki"></div>
+      <div class="setrow" style="margin-bottom:0;"><div class="lbl">Icon (emoji, optional)</div><input id="pIcon" autocomplete="off" placeholder="🙂" maxlength="2"></div></div></div>
+    <div class="lbl" style="margin-top:10px;">Color</div><div class="swatches" id="pSwatches"></div>
+    <div class="setrow"><div class="lbl">Who are they to you? (the AI uses this)</div><textarea id="pDesc" rows="2" placeholder="e.g. my coworker — friendly but professional"></textarea></div>
+    <div class="lbl">They read / speak</div><div class="segbtns" id="pLang"><button data-l="ja">日本語</button><button data-l="en">English</button></div>
+    <div class="lbl" style="margin-top:10px;">Default register</div><div class="segbtns" id="pReg"><button data-r="casual">タメ口</button><button data-r="polite">です・ます</button><button data-r="keigo">敬語</button></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:12px;"><button class="btn" id="personCancel" style="flex:none;padding:11px 24px;">Cancel</button><button class="btn primary" id="personSave" style="flex:none;padding:11px 32px;">Save</button></div>
+  </div></div>
+
+  <div class="regsheet" id="mdSheet"><div class="regcard">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="font-size:15px;font-weight:600;flex:1;">person as markdown</div><button class="chip" id="mdCopy" style="background:var(--acc);color:#fff;">copy</button></div>
+    <div class="lbl">Native app = editable file at <code>people/&lt;name&gt;.md</code>. The <b>## Memory</b> section grows from every conversation.</div>
+    <div class="mdbox" id="mdText"></div>
+    <div style="text-align:center;margin-top:12px;"><button class="btn" id="mdBack" style="flex:none;padding:11px 32px;">Back</button></div>
+  </div></div>
+
+  <div class="regsheet" id="importSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Import a conversation</div>
+    <div class="lbl">Choose your exported <b>.md</b> / <b>.txt</b> file (ChatGPT &amp; Claude exports import perfectly), or paste text below.</div>
+    <div style="margin:9px 0 4px;"><button class="chip" id="importFileBtn" style="background:var(--acc);color:#fff;">📄 Choose a .md / .txt file</button><span id="importFileName" class="lbl" style="margin-left:8px;"></span></div>
+    <input type="file" id="importFile" accept=".md,.markdown,.txt,text/plain,text/markdown" style="display:none;">
+    <div class="setrow" style="margin-top:6px;"><textarea id="importText" rows="6" placeholder="…or paste the conversation here"></textarea></div>
+    <div class="lbl">Where's it from? (adds a label; photo/LINE also fixes OCR errors)</div>
+    <div class="segbtns" id="impSrc" style="margin-top:2px;"><button data-s="pasted" class="on">pasted</button><button data-s="photo">📷 photo</button><button data-s="line">LINE</button><button data-s="other">other</button></div>
+    <div id="importStatus" class="lbl" style="margin-top:8px;"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:6px;"><button class="btn" id="importCancel" style="flex:none;padding:11px 24px;">Cancel</button><button class="btn primary" id="importGo" style="flex:none;padding:11px 32px;">Import</button></div>
+  </div></div>
+
+  <div class="regsheet" id="peopleSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">People in this chat</div>
+    <div class="lbl">Remove someone when they leave (their messages stay). Add anyone else.</div>
+    <div id="peopleList" style="margin:8px 0;"></div>
+    <div class="menuitem" id="addPersonToConvo" style="border-bottom:none;color:var(--acc);">＋ Add someone…</div>
+    <div id="addList"></div>
+    <div style="text-align:center;margin-top:12px;"><button class="btn primary" id="peopleDone" style="flex:none;padding:11px 40px;">Done</button></div>
+  </div></div>
+
+  <div class="regsheet" id="menuSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;" id="menuTitle">Conversation</div>
+    <div id="menuPeople"></div>
+    <div class="menuitem" id="menuAssign" style="display:none;">👤 Assign to a person…</div>
+    <div class="menuitem" id="menuManage">👥 People in this chat</div>
+    <div class="menuitem" id="menuTalk">🎙 In-person mode</div>
+    <div class="menuitem" id="menuTopics">🧭 Talking points</div>
+    <div class="menuitem" id="menuAiName">✨ Name this chat with AI</div>
+    <div class="menuitem" id="menuRename">✏️ Rename chat</div>
+    <div class="menuitem" id="menuMemory">🧠 Update memory from this chat</div>
+    <div class="menuitem" id="menuImport">📋 Import a chat</div>
+    <div class="menuitem" id="menuMerge">🔀 Merge into another chat…</div>
+    <div class="menuitem" id="menuUnmerge" style="display:none;">↩ Unmerge (undo the last merge)</div>
+    <div class="menuitem" id="menuPinChat">📌 Pin chat to top</div>
+    <div class="menuitem" id="menuArchive">🗄 Archive conversation</div>
+    <div class="menuitem danger" id="menuDelete">🗑 Delete conversation</div>
+    <div id="menuStatus" class="lbl" style="text-align:center;"></div>
+    <div style="text-align:center;margin-top:8px;"><button class="btn" id="menuClose" style="flex:none;padding:11px 32px;">Close</button></div>
+  </div></div>
+
+  <div class="regsheet" id="listSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;" id="listTitle">…</div>
+    <div class="lbl" id="listHint"></div>
+    <div id="listBody" style="margin:8px 0;"></div>
+    <div style="text-align:center;margin-top:8px;"><button class="btn" id="listClose" style="flex:none;padding:11px 32px;">Close</button></div>
+  </div></div>
+
+  <div class="regsheet" id="talkSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:2px;">🎙 In-person mode</div>
+    <div class="lbl">Live interpreter. Speak or type → Translate sends it. The speaker can keep going; tap the other side to pass the phone.</div>
+    <div class="segbtns" id="talkSides" style="margin-top:8px;"></div>
+    <div class="setrow" style="margin-top:8px;"><textarea id="talkInput" rows="2" placeholder="Speak or type…"></textarea></div>
+    <div style="display:flex;gap:8px;justify-content:center;" id="talkCompose">
+      <button class="btn" id="talkMic" style="flex:none;padding:11px 22px;">🎤 Speak</button>
+      <button class="btn primary" id="talkGo" style="flex:none;padding:11px 26px;">Translate</button>
+    </div>
+    <div id="talkOut" style="margin-top:10px;"></div>
+    <div id="talkStatus" class="lbl" style="text-align:center;margin-top:6px;"></div>
+    <div style="text-align:center;margin-top:8px;"><button class="btn" id="talkClose" style="flex:none;padding:11px 32px;">✕ Close</button></div>
+  </div></div>
+
+  <div class="wb" id="wb">
+    <div class="wb-hd"><span class="ic" style="color:var(--acc)">🔒</span><div style="flex:1"><div class="t">Workbench</div><div class="sub" id="wbSub">private · only you see this</div></div><button class="chip" style="background:none;color:var(--muted)" id="wbClose">⌄</button></div>
+    <div class="wb-acts" id="wbActs"></div>
+    <div class="wb-thread" id="wbThread"></div>
+    <div class="wb-in"><input id="wbInput" placeholder="Ask about this chat…"><button id="wbSend">↑</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var STORE_KEY='bt_state_v5';
+  var REG_RANK={casual:0, polite:1, keigo:2};
+  var regLabels = {casual:"タメ口 · casual", polite:"です・ます · polite", keigo:"敬語 · keigo"};
+  var ME_COLOR='#0F7A6B';
+  var PALETTE=['#B4552A','#2C7BB0','#5B54B8','#A23E7A','#3E8B49','#B08526','#8A5A3C','#3E7C8B'];
+
+  var STR={
+    en:{ say:'Say it in English…', speaking:'Speaking', you:'You', review:'Before you send', youSaid:'You said', readsBack:'Reads back as', sendIt:'Send it', redo:'↻ Redo', askTab:'⌃ ask the AI about this chat',
+         wbRecap:'Recap', wbCatch:'Catch me up', wbMean:'What do they mean?', wbAskPh:'Ask about this chat…', wbIntro:"I've read this chat. Ask me anything about it, or tap Recap.", editTitle:'Edit message (in English)', editHint:'Your message in English — edit it, and the Japanese re-composes to match' },
+    ja:{ say:'日本語で入力…', speaking:'話す人', you:'あなた', review:'送信する前に', youSaid:'入力した内容', readsBack:'英語では', sendIt:'送信する', redo:'↻ やり直す', askTab:'⌃ この会話についてAIに聞く',
+         wbRecap:'要約', wbCatch:'状況を教えて', wbMean:'どういう意味？', wbAskPh:'この会話について質問…', wbIntro:'この会話を読みました。何でも聞いてください。', editTitle:'メッセージを編集', editHint:'日本語を修正してください（英語訳も作り直します）' }
+  };
+
+  function seedPeople(){
+    return {
+      gibo:  {name:'お義母さん', reg:'keigo',  lang:'ja', color:'#B4552A', icon:'', desc:"my mother-in-law — warm relationship; loves hearing about the kids; money talk is avoided", memory:''},
+      sho:   {name:'Sho',       reg:'casual', lang:'ja', color:'#2C7BB0', icon:'', desc:"my brother — very casual, friendly banter; we joke around", memory:''},
+      kozue: {name:'Kozue',     reg:'polite', lang:'ja', color:'#A23E7A', icon:'', desc:"my sister-in-law — friendly but slightly polite family register, です・ます with warmth", memory:''}
+    };
+  }
+  var T0=Date.now()-3600000;
+  var SEEDS = {
+    gibo:  [{who:'them', by:'gibo',  jp:'今週末、<ruby>楽<rt>たの</rt></ruby>しみにしていますね。<ruby>何時<rt>なんじ</rt></ruby>ごろ来られますか？', en:'Looking forward to this weekend. About what time will you come?', ts:T0}],
+    sho:   [{who:'them', by:'sho',   jp:'<ruby>土曜日<rt>どようび</rt></ruby>、<ruby>何時<rt>なんじ</rt></ruby>に<ruby>来<rt>く</rt></ruby>る？', en:'What time are you coming Saturday?', ts:T0}],
+    kozue: [{who:'them', by:'kozue', jp:'デザート、ありがとうございます！<ruby>楽<rt>たの</rt></ruby>しみにしていますね。', en:'Thank you for the dessert! Looking forward to it.', ts:T0}]
+  };
+  function seedStore(){
+    var s={people:seedPeople(), convos:{}};
+    Object.keys(s.people).forEach(function(pid){ s.convos[pid]={parts:[pid], reg:s.people[pid].reg, msgs:(SEEDS[pid]||[]).slice(), wb:[], archived:false}; });
+    return s;
+  }
+  function migrateOld(){
+    try{
+      var raw=localStorage.getItem('bt_state_v4')||localStorage.getItem('bt_state_v3')||localStorage.getItem('bt_state_v2'); if(!raw) return null;
+      var old=JSON.parse(raw); if(!old||!old.convos) return null; var s=seedStore();
+      if(old.people) Object.keys(old.people).forEach(function(pid){ var op=old.people[pid]; if(!s.people[pid]) s.people[pid]={reg:'polite',lang:'ja',color:PALETTE[Object.keys(s.people).length%PALETTE.length],icon:'',desc:op.name,memory:''}; var p=s.people[pid]; p.name=op.name; if(op.desc)p.desc=op.desc; if(op.reg)p.reg=op.reg; if(op.lang)p.lang=op.lang; if(op.color)p.color=op.color; if(op.icon)p.icon=op.icon; if(op.memory)p.memory=op.memory; });
+      Object.keys(old.convos).forEach(function(id){ var oc=old.convos[id]; if(!s.convos[id]) s.convos[id]={parts:(oc.parts||[id]),reg:oc.reg||'polite',msgs:[],wb:[],archived:!!oc.archived}; var c=s.convos[id]; c.reg=oc.reg||c.reg; c.archived=!!oc.archived; if(oc.parts)c.parts=oc.parts; c.msgs=(oc.msgs||[]).map(function(m){ if(m.who==='them'&&!m.by)m.by=(c.parts[0]||id); if(!m.ts)m.ts=T0; return m; }); c.wb=oc.wb||[]; });
+      return s;
+    }catch(e){ return null; }
+  }
+  function loadStore(){ try{ var raw=localStorage.getItem(STORE_KEY); if(raw){ var s=JSON.parse(raw); if(s&&s.people&&s.convos) return s; } var m=migrateOld(); if(m) return m; return seedStore(); }catch(e){ return seedStore(); } }
+  var store=loadStore();
+  // Built-in "guest" — for one-off strangers (train station, staff). Never listed, never gets a .md or memory.
+  if(!store.people.guest) store.people.guest={name:'Someone', reg:'polite', lang:'ja', color:'#6E7B74', icon:'👤', desc:'a person Julian is talking to one-off (a stranger, staff, someone at the station) — polite, neutral, no shared history', memory:'', guest:true};
+  function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){} }
+  save();
+
+  var cur=null, register='keigo', activeSpeaker='me';
+  function C(){ return store.convos[cur]; }
+  function partsOf(c){ return c.parts.map(function(id){ return {id:id, p:store.people[id]}; }); }
+  function convoName(c){ return c.name || c.parts.map(function(id){ return store.people[id].name; }).join('・'); }
+  function convoKey(ids){ return ids.slice().sort().join('+'); }
+  function listedPeople(){ return Object.keys(store.people).filter(function(id){ return !store.people[id].guest; }); }
+
+  function uiLang(){ return activeSpeaker==='me' ? 'en' : ((store.people[activeSpeaker]&&store.people[activeSpeaker].lang)||'ja'); }
+  function spk(){ if(activeSpeaker==='me') return {id:'me', name:t('you'), lang:'en', color:ME_COLOR, icon:''}; var p=store.people[activeSpeaker]; return {id:activeSpeaker, name:p.name, lang:p.lang||'ja', color:p.color, icon:p.icon}; }
+  function t(k){ return (STR[uiLang()]||STR.en)[k]; }
+  function curSrc(){ return uiLang()==='ja' ? 'ja' : 'en'; }
+  function langWord(){ return uiLang()==='ja'?'Japanese':'English'; }
+
+  var cfg = { provider: localStorage.getItem('bt_provider')||'gemini', key: localStorage.getItem('bt_key')||'', model: localStorage.getItem('bt_model')||'', oaKey: localStorage.getItem('bt_oakey')||'' };
+  function defModel(p){ return p==='gemini'?'gemini-flash-latest':'claude-sonnet-5'; }
+  function liveOn(){ return cfg.key.trim()!==''; }
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  // readings in brackets: keep them only after KANJI (ruby); after kana they're redundant noise (こんにちは[こんにちは]) — strip
+  function rubyfy(s){ return esc(String(s).replace(/([぀-ゟ゠-ヿー]+)\[[^\]]*\]/g,'$1')).replace(/([々-〇一-鿿]+)\[([^\]\n]{1,24})\]/g,'<ruby>$1<rt>$2</rt></ruby>'); }
+  function plain(html){ var d=document.createElement('div'); d.innerHTML=html; d.querySelectorAll('rt').forEach(function(x){x.remove();}); return d.textContent; }
+  function fmtTime(ts){ if(!ts) return ''; var d=new Date(ts); return (''+d.getHours()).padStart(2,'0')+':'+(''+d.getMinutes()).padStart(2,'0'); }
+  var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtDay(ts){ var d=new Date(ts), now=new Date(); var s=MONTHS[d.getMonth()]+' '+d.getDate(); if(d.getFullYear()!==now.getFullYear()) s+=', '+d.getFullYear(); return s; }
+  function sameDay(a,b){ var x=new Date(a), y=new Date(b); return x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&x.getDate()===y.getDate(); }
+  function fmtWhen(ts){ if(!ts) return ''; return sameDay(ts,Date.now()) ? fmtTime(ts) : fmtDay(ts); }
+  function avatarHtml(color, icon, name, size){ var s=size?('width:'+size+'px;height:'+size+'px;font-size:'+Math.round(size*0.42)+'px;'):''; return '<div class="av" style="background:'+color+';'+s+'">'+esc(icon||(name||'?').charAt(0))+'</div>'; }
+  function personColor(id){ return id==='me'?ME_COLOR:(store.people[id]?store.people[id].color:'var(--muted)'); }
+  function senderName(m){ if(m.sys) return 'note'; return m.who==='me' ? 'Julian' : ((store.people[m.by]&&store.people[m.by].name)||'Them'); }
+  function authorLang(m){ return m.who==='me' ? 'en' : ((store.people[m.by]&&store.people[m.by].lang)||'ja'); }
+
+  function histText(){ return C().msgs.slice(-12).map(function(m){ return senderName(m)+': '+plain(m.jp)+(m.en?' ("'+m.en+'")':''); }).join('\n'); }
+  function memoryBlock(){ var ms=partsOf(C()).filter(function(x){return x.p.memory;}).map(function(x){return '['+x.p.name+']\n'+x.p.memory;}); return ms.length?('WHAT YOU ALREADY KNOW (memory, built from past chats):\n'+ms.join('\n')+'\n'):''; }
+
+  var REGDESC={casual:'casual タメ口 — plain forms, friendly, particles like 〜ね/〜よ',polite:'polite です・ます form',keigo:'honorific/humble 敬語 — respectful but warm, not stiff'};
+  function audienceDesc(){ var ps=partsOf(C()).filter(function(x){return x.id!==activeSpeaker;}); if(!ps.length)ps=partsOf(C()); if(ps.length===1) return 'writing to '+ps[0].p.name+' — '+ps[0].p.desc; return 'writing ONE message to a group with: '+ps.map(function(x){return x.p.name+' ('+x.p.desc+')';}).join(' | ')+'. Use one register for the whole group.'; }
+  function jsonSpec(){ return 'Write the "flags" text and "voice_note" in '+langWord()+'.\nReturn ONLY JSON, no fences:\n{"japanese":"Japanese; after EVERY kanji word add its reading in square brackets, e.g. 今週末[こんしゅうまつ]","back_translation":"faithful English of that Japanese","flags":[{"type":"warn or ok","text":"short note on tone/nuance"}],"voice_note":"one short sentence"}'; }
+  function composePrompt(text){
+    if(curSrc()==='en'){ return 'You compose Japanese for Julian, who is '+audienceDesc()+'\n'+memoryBlock()+'REGISTER (must follow): '+REGDESC[register]+'\nJULIAN\'S VOICE: warm, direct, a little playful; never stiff. Keep it sounding like him.\nCONVERSATION SO FAR:\n'+histText()+'\nHE WANTS TO SAY (English): "'+text+'"\n'+jsonSpec(); }
+    // A Japanese speaker sending their own words needs NO commentary/coaching — just an echo + a clean English gloss
+    return spk().name+' just said this in Japanese: "'+text+'".\nReturn ONLY JSON, no fences: {"japanese":"their Japanese exactly (typos silently corrected); readings in square brackets ONLY after kanji, never after kana","back_translation":"plain natural English translation — no comments, notes, or suggestions","flags":[]}';
+  }
+  function editPrompt(m, newSrc){
+    if(authorLang(m)==='en'){ return 'You compose Japanese for Julian, who is '+audienceDesc()+'\nREGISTER: '+REGDESC[register]+'\nHe previously meant (English): "'+(m.en||'')+'"\nHe EDITED his English to: "'+newSrc+'"\nRecompose the WHOLE Japanese to faithfully match the edited English (may change beyond a word swap).\n'+jsonSpec(); }
+    return store.people[m.by].name+' edited their Japanese message to: "'+newSrc+'".\nReturn ONLY JSON, no fences: {"japanese":"their Japanese exactly (typos silently corrected); readings in square brackets ONLY after kanji, never after kana","back_translation":"plain natural English translation — no comments or notes","flags":[]}';
+  }
+
+  function fetchT(url, opts, ms){ var ctl=new AbortController(); opts.signal=ctl.signal; var timer=setTimeout(function(){ctl.abort();},ms); return fetch(url,opts).then(function(r){clearTimeout(timer);return r;},function(e){clearTimeout(timer); if(e&&e.name==='AbortError') throw new Error('timed out after '+Math.round(ms/1000)+'s'); throw e;}); }
+  function callGeminiOnce(model, prompt, maxTok, tmo, wantJson){ var gen={maxOutputTokens:maxTok||2048}; if(wantJson) gen.response_mime_type='application/json'; return fetchT('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent?key='+encodeURIComponent(cfg.key),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:gen})}, tmo||12000).then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('HTTP '+r.status));}); return r.json(); }).then(function(d){ if(!d.candidates||!d.candidates[0]||!d.candidates[0].content||!d.candidates[0].content.parts) throw new Error('empty/blocked response'); return d.candidates[0].content.parts[0].text; }); }
+  function geminiModelChain(){ var l=[localStorage.getItem('bt_model_ok'),cfg.model||defModel('gemini'),'gemini-flash-lite-latest','gemini-2.0-flash','gemini-2.0-flash-lite']; return l.filter(function(m,i){return m&&l.indexOf(m)===i;}); }
+  function callGeminiChain(prompt, models, onStatus, maxTok, tmo, wantJson, lastErr){ if(!models.length) return Promise.reject(lastErr||new Error('no Gemini model responded')); if(onStatus)onStatus(models[0]); return callGeminiOnce(models[0],prompt,maxTok,tmo,wantJson).then(function(txt){localStorage.setItem('bt_model_ok',models[0]);return txt;}).catch(function(e){ if(/api key|permission|unauthoriz|billing/i.test(e.message||'')) throw e; return callGeminiChain(prompt,models.slice(1),onStatus,maxTok,tmo,wantJson,e); }); }
+  // opts.json=true → ask Gemini for strict JSON output; plain-text answers (Workbench, memory) MUST NOT set it, or they come back as raw JSON
+  function callLLM(prompt, onStatus, opts){ opts=opts||{}; var maxTok=opts.maxTokens||2048; if(cfg.provider==='gemini') return callGeminiChain(prompt,geminiModelChain(),onStatus,maxTok,opts.timeout||12000,!!opts.json); var cm=cfg.model||defModel('claude'); if(onStatus)onStatus(cm); return fetchT('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:cm,max_tokens:maxTok,messages:[{role:'user',content:prompt}]})}, opts.timeout||30000).then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('HTTP '+r.status));}); return r.json(); }).then(function(d){ return d.content[0].text; }); }
+  function parseModelJSON(x){ x=String(x).trim().replace(/^```json\s*/i,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim(); return JSON.parse(x); }
+  function toResult(raw){ var j=parseModelJSON(raw); var en=String(j.back_translation||'').replace(/^"|"$/g,''); var flags=(j.flags||[]).map(function(f){return {type:(f.type==='warn'?'warn':'ok'),t:esc(String(f.text||''))};}); if(j.voice_note) flags.push({type:'ok',t:esc(String(j.voice_note))}); return {jp:rubyfy(j.japanese||''),en:en,back:'"'+esc(en)+'"',flags:flags,real:true}; }
+  function composeLive(text,onStatus){ return callLLM(composePrompt(text),onStatus,{json:true}).then(toResult); }
+  // Whole-conversation view for titles / topics / suggestions — numbered so the AI can point back at messages
+  function histFull(){ var lines=C().msgs.map(function(m,i){ return i+'. '+senderName(m)+': '+String(m.en||plain(m.jp)).slice(0,110); }); var out=lines.join('\n'); while(out.length>14000 && lines.length>20){ lines.splice(0,10); out='(earlier messages omitted)\n'+lines.join('\n'); } return out; }
+  function firstJsonVal(o){ if(typeof o==='string') return o; if(Array.isArray(o)) return o.map(firstJsonVal).join('\n'); if(o&&typeof o==='object'){ var k=Object.keys(o); return k.length?firstJsonVal(o[k[0]]):''; } return String(o==null?'':o); }
+  function deJson(tx){ tx=String(tx).trim(); if(/^[\[{]/.test(tx)){ try{ return firstJsonVal(parseModelJSON(tx)); }catch(e){} } return tx; }
+
+  var SCEN=[
+    {keys:["thank","having","weekend","invit"],out:{keigo:['<ruby>今週末<rt>こんしゅうまつ</rt></ruby>はお<ruby>招<rt>まね</rt></ruby>きいただき、<ruby>本当<rt>ほんとう</rt></ruby>にありがとうございます。<ruby>楽<rt>たの</rt></ruby>しみにしております。','Thank you very much for inviting us this weekend. Looking forward to it.','warn','A touch formal — keep it warm?'],polite:['<ruby>招<rt>まね</rt></ruby>いてくれてありがとうございます。<ruby>楽<rt>たの</rt></ruby>しみにしています。','Thanks for having us. Looking forward to it.','ok','Natural and warm.'],casual:['<ruby>招<rt>まね</rt></ruby>いてくれてありがとう！<ruby>楽<rt>たの</rt></ruby>しみにしてる〜','Thanks for having us! Can\'t wait.','ok','Casual and friendly.']}},
+    {keys:["late","delay"],out:{keigo:['<ruby>少<rt>すこ</rt></ruby>し<ruby>遅<rt>おく</rt></ruby>れてしまいそうです。<ruby>申<rt>もう</rt></ruby>し<ruby>訳<rt>わけ</rt></ruby>ございません。','I\'ll be a little late. I\'m sorry.','ok','Appropriately apologetic.'],polite:['ちょっと<ruby>遅<rt>おく</rt></ruby>れそうです。すみません。','I\'ll be a bit late, sorry.','ok','Fine.'],casual:['ちょっと<ruby>遅<rt>おく</rt></ruby>れそう！ごめん','Running late! Sorry.','ok','Casual.']}},
+    {keys:["what time","when","time"],out:{keigo:['<ruby>何時<rt>なんじ</rt></ruby>ごろお<ruby>伺<rt>うかが</rt></ruby>いすればよろしいでしょうか。','About what time should I come?','ok','Polite.'],polite:['<ruby>何時<rt>なんじ</rt></ruby>ごろ<ruby>行<rt>い</rt></ruby>けばいいですか？','What time should I come?','ok','Fine.'],casual:['<ruby>何時<rt>なんじ</rt></ruby>ごろ<ruby>行<rt>い</rt></ruby>けばいい？','What time should I come?','ok','Casual.']}},
+    {keys:["dessert","bring"],out:{keigo:['デザートをお<ruby>持<rt>も</rt></ruby>ちします。','I\'ll bring dessert.','ok','Polite.'],polite:['デザート<ruby>持<rt>も</rt></ruby>っていきます。','I\'ll bring dessert.','ok','Fine.'],casual:['デザート<ruby>持<rt>も</rt></ruby>っていくね！','I\'ll bring dessert!','ok','Casual.']}}
+  ];
+  function compose(text){
+    if(curSrc()==='ja') return {jp:rubyfy(text),en:'(demo) add a key for the English translation',flags:[{type:'warn',t:'Translating their Japanese needs a live key.'}],real:false,err:true};
+    var tl=text.toLowerCase();
+    for(var i=0;i<SCEN.length;i++) for(var k=0;k<SCEN[i].keys.length;k++) if(tl.indexOf(SCEN[i].keys[k])>-1){ var o=SCEN[i].out[register]; return {jp:o[0],en:o[1],back:'"'+o[1]+'"',flags:[{type:o[2],t:o[3]},{type:'ok',t:'Sounds like you.'}],real:true}; }
+    return {jp:'‹ demo mode — add a key in ⚙ to compose anything ›',en:esc(text),back:'"'+esc(text)+'"',flags:[{type:'warn',t:'Not a demo phrase — add an API key.'}],real:false,err:true};
+  }
+
+  var viewChats=document.getElementById('viewChats'), viewConvo=document.getElementById('viewConvo');
+  var thread=document.getElementById('thread'), input=document.getElementById('input'), send=document.getElementById('send');
+  var scrim=document.getElementById('scrim'), reviewBody=document.getElementById('reviewBody');
+  var wb=document.getElementById('wb'), wbThread=document.getElementById('wbThread'), demos=document.getElementById('demos');
+  var pending=null;
+
+  // chats
+  var showArchived=false;
+  function renderChats(){
+    var rows=document.getElementById('rows'); rows.innerHTML='';
+    var keys=Object.keys(store.convos);
+    var live=keys.filter(function(k){return !store.convos[k].archived;});
+    live.sort(function(a,b){ return (store.convos[b].pinnedChat?1:0)-(store.convos[a].pinnedChat?1:0); });
+    live.forEach(function(k){ rows.appendChild(chatRow(k)); });
+    var arch=keys.filter(function(k){return store.convos[k].archived;});
+    if(arch.length){ var h=document.createElement('div'); h.className='archhdr'; h.textContent=(showArchived?'▾':'▸')+' Archived ('+arch.length+')'; h.onclick=function(){showArchived=!showArchived;renderChats();}; rows.appendChild(h); if(showArchived) arch.forEach(function(k){rows.appendChild(chatRow(k,true));}); }
+  }
+  function chatRow(k,isArch){
+    var c=store.convos[k], last=c.msgs[c.msgs.length-1], group=c.parts.length>1;
+    var color=group?'var(--acc)':store.people[c.parts[0]].color;
+    var icon=group?String(c.parts.length):(store.people[c.parts[0]].icon||store.people[c.parts[0]].name.charAt(0));
+    var row=document.createElement('div'); row.className='row'; if(isArch)row.style.opacity='.6';
+    row.innerHTML=avatarHtml(color,icon,'',34)+'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>'+(c.title?'<div class="prev" style="color:var(--acc-ink);"></div>':'')+'<div class="prev"></div></div><div class="meta"><span class="rowchip"><span class="dot" style="width:5px;height:5px;"></span>'+regLabels[c.reg].split(' · ')[0]+'</span>'+(last?'<div class="tm">'+fmtWhen(last.ts)+'</div>':'')+'</div>';
+    row.querySelector('div[style*="font-weight:600"]').textContent=(c.pinnedChat?'📌 ':'')+convoName(c);
+    if(c.title) row.querySelectorAll('.prev')[0].textContent=c.title;
+    row.querySelectorAll('.prev')[c.title?1:0].textContent=last?plain(last.jp):'no messages yet';
+    if(selMode){ var cb=document.createElement('div'); cb.style.cssText='width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;'+(selSet[k]?'background:var(--acc);border-color:var(--acc);':''); cb.textContent=selSet[k]?'✓':''; row.insertBefore(cb,row.firstChild); }
+    // long-press → multi-select mode (delete / merge / archive several chats at once)
+    var lp=null, lpFired=false;
+    row.onpointerdown=function(){ lpFired=false; lp=setTimeout(function(){ lpFired=true; selMode=true; selSet[k]=true; updateSelBar(); renderChats(); },550); };
+    row.onpointerup=row.onpointerleave=function(){ if(lp){clearTimeout(lp);lp=null;} };
+    row.onclick=function(){ if(lpFired){ lpFired=false; return; } if(selMode){ selSet[k]=!selSet[k]; updateSelBar(); renderChats(); return; } openConvo(k); }; return row;
+  }
+  var selMode=false, selSet={};
+  function exitSel(){ selMode=false; selSet={}; updateSelBar(); renderChats(); }
+  function updateSelBar(){ var n=Object.keys(selSet).filter(function(k){return selSet[k];}).length; document.getElementById('selBar').style.display=selMode?'flex':'none'; document.getElementById('selCount').textContent=n+' selected'; }
+  document.getElementById('selCancel').onclick=exitSel;
+  document.getElementById('selArchive').onclick=function(){ Object.keys(selSet).forEach(function(k){ if(selSet[k]&&store.convos[k]) store.convos[k].archived=true; }); save(); exitSel(); };
+  document.getElementById('selDelete').onclick=function(){ var ks=Object.keys(selSet).filter(function(k){return selSet[k]&&store.convos[k];}); if(!ks.length)return; if(!confirm('Delete '+ks.length+' conversation'+(ks.length>1?'s':'')+' and their messages? (People are kept.)'))return; ks.forEach(function(k){ delete store.convos[k]; }); save(); exitSel(); };
+  document.getElementById('selMerge').onclick=function(){
+    var ks=Object.keys(selSet).filter(function(k){return selSet[k]&&store.convos[k];});
+    if(ks.length<2){ alert('Select at least two chats to merge.'); return; }
+    ks.sort(function(a,b){ return store.convos[b].msgs.length-store.convos[a].msgs.length; });   // biggest chat is the merge target
+    mergeConvos(ks[0], ks.slice(1)); exitSel();
+  };
+  function showView(w){ viewChats.classList.toggle('on',w==='chats'); viewConvo.classList.toggle('on',w==='convo'); }
+
+  // thread
+  var openActbar=null;
+  function scrollToMsg(idx){ var el=thread.querySelector('.msgwrap[data-idx="'+idx+'"]'); if(!el) return; el.scrollIntoView({block:'center'}); var b=el.querySelector('.bub'); if(b){ b.style.transition='none'; b.style.outline='2px solid var(--acc)'; setTimeout(function(){ b.style.transition='outline .8s'; b.style.outline='2px solid transparent'; },600); } }
+  // What a bubble shows, per language — tolerant of bad imported data: never show English-only "jp" in the Japanese view, never a blank bubble
+  function bubHtml(m,dispLang){
+    var hasJa=/[぀-ヿ㐀-鿿]/.test(plain(m.jp||''));
+    if(dispLang==='ja'){ var main=hasJa?m.jp:(m.en?'<span>'+esc(m.en)+'</span>':m.jp); return main+(m.who!=='me'&&m.en&&hasJa?'<div class="sub">"'+esc(m.en)+'"</div>':''); }
+    return m.en ? '<span>'+esc(m.en)+'</span>' : m.jp;
+  }
+  function renderPinsBar(){
+    var bar=document.getElementById('pinsBar'); bar.innerHTML='';
+    var pinned=[]; C().msgs.forEach(function(m,i){ if(m.pinned) pinned.push(i); });
+    bar.style.display=pinned.length?'flex':'none';
+    pinned.forEach(function(i){ var m=C().msgs[i]; var chipEl=document.createElement('button'); chipEl.className='demo'; chipEl.style.color='var(--acc-ink)'; chipEl.style.flexShrink='0'; chipEl.textContent='📌 '+plain(m.en||m.jp).slice(0,26)+'…'; chipEl.onclick=function(){ scrollToMsg(i); }; bar.appendChild(chipEl); });
+  }
+  function renderThread(toBottom){
+    var prevScroll=thread.scrollTop;
+    thread.innerHTML=''; openActbar=null;
+    renderPinsBar();
+    var lastTs=null;
+    C().msgs.forEach(function(m, idx){
+      if(m.ts && (!lastTs || !sameDay(lastTs,m.ts))){ var sep=document.createElement('div'); sep.className='seg'; sep.textContent=fmtDay(m.ts); thread.appendChild(sep); }
+      if(m.ts) lastTs=m.ts;
+      if(m.sys){ var sm=document.createElement('div'); sm.className='seg'; sm.style.maxWidth='90%'; sm.style.textAlign='center'; sm.textContent=plain(m.en||m.jp||''); thread.appendChild(sm); return; }
+      var color=m.who==='me'?ME_COLOR:personColor(m.by);
+      var wrap=document.createElement('div'); wrap.className='msgwrap '+(m.who==='me'?'me':'them'); wrap.setAttribute('data-idx',idx);
+      var who=document.createElement('div'); who.className='who';
+      who.innerHTML='<span class="cd" style="background:'+color+'"></span>'+esc(m.who==='me'?'You':senderName(m))+'<span class="tm">· '+fmtTime(m.ts)+'</span>'+(m.imported?'<span class="tm" style="color:var(--acc-ink);">· ⇩ '+srcLabel(m.source)+'</span>':'')+(m.pinned?'<span class="tm">📌</span>':'')+(m.saved?'<span class="tm">⭐</span>':'');
+      wrap.appendChild(who);
+      var b=document.createElement('div'); b.className='bub '+(m.who==='me'?'me':'them'); if(m.who!=='me')b.style.borderLeft='3px solid '+color;
+      b.innerHTML=bubHtml(m, m._showLang||uiLang());
+      b.onclick=function(){ if(window.getSelection && String(window.getSelection())!=='') return; toggleActbar(wrap,m,idx); };
+      wrap.appendChild(b); thread.appendChild(wrap);
+    });
+    thread.scrollTop = toBottom ? thread.scrollHeight : prevScroll;  // only jump to bottom on open/send/import — a language toggle or edit keeps your place
+  }
+  function toggleActbar(wrap,m,idx){
+    if(openActbar){openActbar.remove();openActbar=null;}
+    if(wrap.querySelector('.actbar')) return;
+    var bar=document.createElement('div'); bar.className='actbar';
+    var mk=function(label,fn,danger){ var x=document.createElement('button'); x.textContent=label; if(danger)x.className='danger'; x.onclick=function(e){e.stopPropagation();fn();}; return x; };
+    bar.appendChild(mk('copy',function(){ navigator.clipboard&&navigator.clipboard.writeText(plain(m.jp)); closeActbar(); }));
+    bar.appendChild(mk(m.pinned?'unpin':'📌 pin',function(){ m.pinned=!m.pinned; save(); renderThread(); }));
+    bar.appendChild(mk(m.saved?'unsave':'⭐ save',function(){ m.saved=!m.saved; save(); renderThread(); }));
+    var bub=wrap.querySelector('.bub');
+    var langBtn=mk((((m._showLang||uiLang())==='ja')?'English':'日本語'),function(){
+      // Flip THIS bubble in place — never re-render the whole thread (that destroyed the action bar and could race a stray tap back to the default language)
+      m._showLang=((m._showLang||uiLang())==='ja')?'en':'ja';
+      bub.innerHTML=bubHtml(m,m._showLang);
+      langBtn.textContent=m._showLang==='ja'?'English':'日本語';
+    });
+    bar.appendChild(langBtn);
+    var mine=(m.who==='me'&&activeSpeaker==='me')||(m.who==='them'&&m.by===activeSpeaker);
+    if(mine){ bar.appendChild(mk('edit',function(){ closeActbar(); openEdit(idx); })); bar.appendChild(mk('delete',function(){ if(confirm('Delete this message?')){ C().msgs.splice(idx,1); save(); renderThread(); } },true)); }
+    else { bar.appendChild(mk('ask about this',function(){ closeActbar(); openWb(); wbAsk('About: '+plain(m.jp).slice(0,36)+'…','Explain this message they sent: 「'+plain(m.jp)+'」 — meaning and nuance.','(demo) add a key for real answers.'); })); }
+    wrap.appendChild(bar); openActbar=bar;
+  }
+  function closeActbar(){ if(openActbar){openActbar.remove();openActbar=null;} }
+
+  // highlight
+  var selChip=null; var lastMineIdx=-1;
+  function removeSelChip(){ if(selChip){selChip.remove();selChip=null;} }
+  document.addEventListener('selectionchange',function(){
+    if(!viewConvo.classList.contains('on')) return;
+    setTimeout(function(){
+      removeSelChip(); var sel=window.getSelection(), txt=String(sel).trim();
+      if(!txt||sel.rangeCount===0) return; var range=sel.getRangeAt(0); if(!thread.contains(range.commonAncestorContainer)) return;
+      var wrapEl=range.commonAncestorContainer.parentElement; while(wrapEl&&!wrapEl.classList.contains('msgwrap')) wrapEl=wrapEl.parentElement;
+      var isMine=wrapEl&&wrapEl.classList.contains('me'); if(wrapEl) lastMineIdx=+wrapEl.getAttribute('data-idx');
+      var rect=range.getBoundingClientRect(), ar=document.querySelector('.app').getBoundingClientRect();
+      selChip=document.createElement('div'); selChip.className='selchip'; selChip.style.left=Math.max(8,rect.left-ar.left)+'px'; selChip.style.top=Math.max(6,rect.top-ar.top-40)+'px';
+      var ask=document.createElement('button'); ask.textContent='⌃ Ask'; ask.onclick=function(){ var q=txt; removeSelChip(); openWb(); wbAsk('「'+q+'」— ?','In this conversation, what does 「'+q+'」 mean — meaning, reading, nuance?','(demo) add a key for real answers.'); };
+      selChip.appendChild(ask);
+      if(isMine){ var ed=document.createElement('button'); ed.textContent='✎ Edit'; ed.style.background='var(--acc-ink)'; ed.onclick=function(){ removeSelChip(); if(lastMineIdx>=0) openEdit(lastMineIdx); }; selChip.appendChild(ed); }
+      document.querySelector('.app').appendChild(selChip);
+    },10);
+  });
+
+  function applyLang(){
+    input.placeholder=t('say'); document.getElementById('wbOpen2').textContent=t('askTab'); document.getElementById('spkLabel').textContent=t('speaking');
+    renderSpkInline();
+    document.getElementById('regChip').style.display=(curSrc()==='ja')?'none':'';
+    document.getElementById('wbInput').placeholder=t('wbAskPh');
+    var acts=document.getElementById('wbActs'); acts.innerHTML='';
+    [['recap',t('wbRecap')],['catch',t('wbCatch')],['mean',t('wbMean')]].forEach(function(q){ var b=document.createElement('button'); b.className='qa'; b.setAttribute('data-q',q[0]); b.textContent=q[1]; b.onclick=function(){ wbAsk(q[1],WBQ[q[0]],WB[q[0]]); }; acts.appendChild(b); });
+    var sv=document.createElement('button'); sv.className='qa'; sv.textContent=uiLang()==='ja'?'⭐ 保存済み':'⭐ Saved'; sv.onclick=function(){
+      var body=openList(uiLang()==='ja'?'⭐ 保存したメッセージ':'⭐ Saved messages', uiLang()==='ja'?'タップすると該当箇所へ移動します。':'Tap one to jump to it in the chat.');
+      var any=false;
+      C().msgs.forEach(function(m,i){ if(!m.saved) return; any=true; var d=document.createElement('div'); d.className='menuitem'; d.innerHTML='<div style="min-width:0;"><div style="font-size:13px;"></div><div class="lbl" style="margin:2px 0 0;"></div></div>'; d.children[0].children[0].textContent=plain(uiLang()==='ja'?m.jp:(m.en||m.jp)).slice(0,70); d.children[0].children[1].textContent=senderName(m)+' · '+fmtWhen(m.ts); d.onclick=function(){ listSheet.classList.remove('on'); wb.classList.remove('on'); scrollToMsg(i); }; body.appendChild(d); });
+      if(!any) body.innerHTML='<div class="lbl">'+(uiLang()==='ja'?'まだありません — メッセージをタップ → ⭐ save':'Nothing saved yet — tap a message → ⭐ save.')+'</div>';
+    }; acts.appendChild(sv);
+  }
+  function openConvo(k){
+    cur=k; var c=C(); register=c.reg;
+    // Restore who had the phone — reopening a chat must NOT silently flip the language back to English
+    activeSpeaker=(c.speaker && (c.speaker==='me' || c.parts.indexOf(c.speaker)>-1)) ? c.speaker : 'me';
+    c.msgs.forEach(function(m){delete m._showLang;});
+    var group=c.parts.length>1;
+    var cAv=document.getElementById('cAv'); cAv.style.background=group?'var(--acc)':store.people[c.parts[0]].color; cAv.textContent=group?String(c.parts.length):(store.people[c.parts[0]].icon||store.people[c.parts[0]].name.charAt(0));
+    document.getElementById('cName').textContent=convoName(c);
+    input.value=localStorage.getItem('bt_draft_'+k)||''; autoresize(); send.disabled=input.value.trim()==='';   // drafts survive leaving / reloading
+    renderRegLabel(); applyLang(); renderThread(true); renderWbThread(); renderSuggs(); wb.classList.remove('on'); showView('convo');
+  }
+  document.getElementById('backBtn').onclick=function(){ removeSelChip(); renderChats(); showView('chats'); };
+  function renderRegLabel(){ document.getElementById('regLabel').textContent=regLabels[register]; }
+
+  // speaker — everyone in the chat is listed inline; one tap switches (no picker sheet)
+  function switchSpeaker(id){ activeSpeaker=id; C().speaker=id; C().msgs.forEach(function(m){delete m._showLang;}); save(); applyLang(); renderThread(true); renderWbThread(); renderSuggs(); input.value=''; send.disabled=true; if(cur) localStorage.removeItem('bt_draft_'+cur); }
+  function renderSpkInline(){
+    var el=document.getElementById('spkInline'); el.innerHTML='';
+    var opts=[{id:'me',name:t('you'),color:ME_COLOR,icon:''}].concat(partsOf(C()).map(function(x){return {id:x.id,name:x.p.name,color:x.p.color,icon:x.p.icon};}));
+    opts.forEach(function(o){ var b=document.createElement('button'); b.className='spkchip'; b.style.flexShrink='0';
+      if(activeSpeaker===o.id){ b.style.background='var(--acc)'; b.style.color='#fff'; b.style.borderColor='var(--acc)'; }
+      b.innerHTML=avatarHtml(o.color,o.icon,o.name,18)+'<span></span>'; b.querySelector('span').textContent=o.name;
+      b.onclick=function(){ if(activeSpeaker!==o.id) switchSpeaker(o.id); }; el.appendChild(b); });
+  }
+
+  // composer
+  function autoresize(){ input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,110)+'px'; }
+  input.addEventListener('input',function(){ autoresize(); send.disabled=input.value.trim()===''; if(cur){ if(input.value) localStorage.setItem('bt_draft_'+cur, input.value); else localStorage.removeItem('bt_draft_'+cur); } });
+  document.getElementById('micBtn').onclick=function(){ recordToggle(input, document.getElementById('micBtn')); };
+  input.addEventListener('keydown',function(e){ if(e.key!=='Enter'||e.shiftKey)return; e.preventDefault(); if(scrim.classList.contains('on')){document.getElementById('sendIt').click();return;} if(!send.disabled) openReview(); });
+  document.addEventListener('keydown',function(e){ if(e.key!=='Enter'||e.shiftKey)return; if(!scrim.classList.contains('on'))return; if(/INPUT|TEXTAREA/.test(e.target.tagName))return; e.preventDefault(); document.getElementById('sendIt').click(); });
+  // Suggestion chips — read the ACTUAL conversation and propose what the current speaker might say next
+  var DEFAULT_SUGGS=[["Thanks for having us","Thanks so much for having us this weekend"],["Running late","I'm running a little late"],["What time?","What time should I come?"],["Bringing dessert","We'll bring dessert"]];
+  function suggChip(label,fill){ var b=document.createElement('button'); b.className='demo'; b.textContent=label; b.onclick=function(){ input.value=fill; autoresize(); send.disabled=false; input.focus(); }; return b; }
+  function suggKey(){ return C().msgs.length+'|'+activeSpeaker; }
+  function renderSuggs(){
+    demos.innerHTML=''; var c=C(); if(!c) return;
+    if(document.getElementById('talkSheet').classList.contains('on')) return;  // mid-conversation in-person turns don't need reply chips
+    if(!c.msgs.length || !liveOn()){ if(curSrc()==='en') DEFAULT_SUGGS.forEach(function(s){ demos.appendChild(suggChip(s[0],s[1])); }); return; }
+    if(c._suggs && c._suggs.k===suggKey()){ c._suggs.items.forEach(function(s){ demos.appendChild(suggChip(s.length>26?s.slice(0,25)+'…':s, s)); }); return; }
+    var b=document.createElement('button'); b.className='demo'; b.textContent='✨ …'; b.disabled=true; demos.appendChild(b);
+    var myKey=suggKey(), lang=curSrc()==='ja'?'Japanese':'English';
+    var p='Conversation between Julian and '+partsOf(c).map(function(x){return x.p.name;}).join(', ')+':\n'+histText()+'\n\nIt is now '+(activeSpeaker==='me'?'Julian':spk().name)+"'s turn. Suggest 4 SHORT distinct things they might genuinely want to say next, fitting this exact conversation (reply, follow-up question, next step). Each under 12 words, in "+lang+'. Return ONLY JSON: {"suggestions":["...","...","...","..."]}';
+    callLLM(p,null,{json:true,timeout:15000}).then(function(tx){ var j=parseModelJSON(tx); var items=(j.suggestions||[]).map(String).filter(Boolean).slice(0,4); if(!items.length) throw new Error('none'); c._suggs={k:myKey,items:items}; if(suggKey()===myKey){ renderSuggs(); } }).catch(function(){ if(suggKey()===myKey){ demos.innerHTML=''; } });
+  }
+
+  // review
+  var composeSeq=0;
+  function spinnerHtml(){ return '<div class="lbl" style="text-align:center;margin-top:8px;">composing with '+(cfg.provider==='gemini'?'Gemini':'Claude')+'…</div><div class="spinner"></div><div class="lbl" id="composeStatus" style="text-align:center;"></div>'; }
+  function statusFn(mine){ return function(model){ var s=document.getElementById('composeStatus'); if(s&&mine===composeSeq) s.textContent='trying '+model+'…'; }; }
+  function errRes(err){ return {jp:'<span style="color:var(--muted)">couldn\'t compose</span>',back:'—',en:'',flags:[{type:'warn',t:'API error: '+esc(err.message||String(err))+' — check ⚙ settings, then Redo.'}],real:false,err:true}; }
+  function runCompose(){ var text=pending.text; if(!liveOn()){ pending.res=compose(text); drawReview(); return; } var mine=++composeSeq; reviewBody.innerHTML=spinnerHtml(); composeLive(text,statusFn(mine)).then(function(res){ if(mine!==composeSeq)return; pending.res=res; drawReview(); }).catch(function(err){ if(mine!==composeSeq)return; pending.res=errRes(err); drawReview(); }); }
+  function openReview(){ var text=input.value.trim(); if(!text)return; pending={text:text,res:null}; document.getElementById('reviewTitle').textContent=t('review'); scrim.classList.add('on'); runCompose(); }
+  function flagsHtml(r){ return (r.flags||[]).map(function(f){ return '<div class="flag '+f.type+'">'+(f.type==='warn'?'⚠':'✓')+'&nbsp;'+f.t+'</div>'; }).join(''); }
+  function drawReview(){ var r=pending.res; reviewBody.innerHTML='<div><div class="lbl">'+t('youSaid')+'</div><div class="src">'+esc(pending.text)+'</div></div><div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--muted)">↓</span>'+(curSrc()==='en'?'<span class="chip"><span class="dot"></span>'+regLabels[register]+'</span>':'<span class="chip"><span class="dot"></span>→ English</span>')+'</div><div class="jp">'+r.jp+'</div><div class="back"><div class="lbl">'+t('readsBack')+'</div><div class="txt">'+r.back+'</div></div>'+flagsHtml(r); document.getElementById('sendIt').textContent=t('sendIt'); document.getElementById('redo').textContent=t('redo'); }
+  send.onclick=openReview;
+  document.getElementById('reviewClose').onclick=function(){ composeSeq++; scrim.classList.remove('on'); };
+  document.getElementById('redo').onclick=function(){ if(pending) runCompose(); };
+  document.getElementById('sendIt').onclick=function(){ if(!pending||!pending.res||pending.res.err)return; var r=pending.res; var now=Date.now(); if(activeSpeaker==='me') C().msgs.push({who:'me',jp:r.jp,en:pending.text,ts:now}); else C().msgs.push({who:'them',by:activeSpeaker,jp:r.jp,en:r.en||pending.text,ts:now}); save(); renderThread(true); renderSuggs(); scrim.classList.remove('on'); input.value=''; autoresize(); send.disabled=true; localStorage.removeItem('bt_draft_'+cur); };
+
+  // edit
+  var editScrim=document.getElementById('editScrim'), editBody=document.getElementById('editBody'), editState=null;
+  function openEdit(idx){
+    var m=C().msgs[idx]; var alang=authorLang(m); editState={idx:idx,res:null,m:m};
+    document.getElementById('editApply').style.display='none'; document.getElementById('editGo').style.display='';
+    document.getElementById('editTitle').textContent = alang==='en'?'Edit message (in English)':'メッセージを編集（日本語）';
+    var srcVal = alang==='en' ? (m.en||'') : plain(m.jp);
+    var hint = alang==='en' ? 'Your English — edit it; the Japanese recomposes to match' : '日本語を修正（英語訳も作り直します）';
+    editBody.innerHTML='<div><div class="lbl">Current</div><div class="jp" style="font-size:16px;">'+m.jp+'</div></div><div class="setrow"><div class="lbl">'+esc(hint)+'</div><textarea id="editSrc" rows="3"></textarea></div>'+(liveOn()?'':'<div class="flag warn">⚠&nbsp;Editing needs a live AI — add a key in ⚙.</div>');
+    editScrim.classList.add('on'); setTimeout(function(){ var ta=document.getElementById('editSrc'); if(ta){ ta.value=srcVal; ta.focus(); } },80);
+  }
+  document.getElementById('editClose').onclick=function(){ editScrim.classList.remove('on'); editState=null; };
+  document.getElementById('editGo').onclick=function(){ if(!editState||!liveOn())return; var v=(document.getElementById('editSrc')||{}).value||''; if(!v.trim())return; editBody.innerHTML=spinnerHtml(); var mine=++composeSeq; editState.newSrc=v.trim(); callLLM(editPrompt(editState.m,v.trim()),statusFn(mine),{json:true}).then(toResult).then(function(res){ if(!editState)return; editState.res=res; editBody.innerHTML='<div><div class="lbl">Revised</div><div class="jp">'+res.jp+'</div></div><div class="back"><div class="lbl">Reads back as</div><div class="txt">'+res.back+'</div></div>'+flagsHtml(res); document.getElementById('editGo').style.display='none'; document.getElementById('editApply').style.display=''; }).catch(function(err){ if(!editState)return; editBody.innerHTML=flagsHtml(errRes(err)); }); };
+  document.getElementById('editApply').onclick=function(){ if(!editState||!editState.res)return; var m=editState.m; m.jp=editState.res.jp; if(authorLang(m)==='en') m.en=editState.newSrc; else m.en=editState.res.en; delete m._showLang; save(); renderThread(); editScrim.classList.remove('on'); editState=null; };
+
+  // register
+  var regSheet=document.getElementById('regSheet');
+  function markSeg(){ document.querySelectorAll('#segbtns button').forEach(function(x){x.classList.toggle('on',x.dataset.r===register);}); }
+  document.getElementById('regChip').onclick=function(){ markSeg(); regSheet.classList.add('on'); };
+  document.querySelectorAll('#segbtns button').forEach(function(x){ x.onclick=function(){ register=x.dataset.r; C().reg=register; save(); markSeg(); renderRegLabel(); }; });
+  document.getElementById('regDone').onclick=function(){ regSheet.classList.remove('on'); };
+
+  // workbench — PRIVATE PER SPEAKER: each person passing the phone gets their own thread; nobody sees anyone else's
+  function wbArr(){ var c=C(); if(Array.isArray(c.wb)) c.wb={me:c.wb}; if(!c.wb||typeof c.wb!=='object') c.wb={}; if(!c.wb[activeSpeaker]) c.wb[activeSpeaker]=[]; return c.wb[activeSpeaker]; }
+  function renderWbThread(){ wbThread.innerHTML=''; wbArr().forEach(function(e){ wbNode(e.role,e.html); }); document.getElementById('wbSub').textContent = uiLang()==='ja' ? ('非公開 · '+spk().name+'だけが見られます') : (activeSpeaker==='me' ? 'private · only you see this' : ('private · only '+spk().name+' sees this')); }
+  function wbNode(role,html){ var d=document.createElement('div'); d.className=(role==='you'?'wb-you':'wb-ai'); d.innerHTML='<div class="wb-role">'+(role==='you'?(uiLang()==='ja'?'あなた':'You'):'Assistant')+'</div>'+html; wbThread.appendChild(d); wbThread.scrollTop=wbThread.scrollHeight; return d; }
+  function openWb(){ renderWbThread(); wb.classList.add('on'); if(wbArr().length===0){ wbPush('ai',t('wbIntro')); } }
+  document.getElementById('wbOpen2').onclick=openWb; document.getElementById('wbClose').onclick=function(){ wb.classList.remove('on'); };
+  function wbPush(role,html){ wbArr().push({role:role,html:html}); save(); return wbNode(role,html); }
+  function wbFinal(node,html){ node.innerHTML='<div class="wb-role">Assistant</div>'+html; var a=wbArr(); if(a.length&&a[a.length-1].pending) a[a.length-1]={role:'ai',html:html}; save(); wbThread.scrollTop=wbThread.scrollHeight; }
+  var WB={recap:"(demo) Recap needs a live AI — add a key in ⚙.",catch:"(demo) Catch-me-up needs a live AI.",mean:"(demo) add a key for a real read."};
+  var WBQ={recap:"Recap this WHOLE conversation: what it has been about, any decisions made, and what is still open.",
+           catch:"Catch me up on just the RECENT part: what the last several messages were about, and whether anything is waiting on a reply from me. Do not summarize the whole history.",
+           mean:"What does their last message mean — any nuance?"};
+  function wbAsk(shown,full,canned){ wbPush('you',esc(shown)); if(!liveOn()){ setTimeout(function(){wbPush('ai',canned);},220); return; } var node=wbPush('ai','<span class="lbl">thinking…</span>'); var a=wbArr(); a[a.length-1].pending=true; var p='You are the private assistant helping '+(activeSpeaker==='me'?'Julian, who is '+audienceDesc():spk().name+' inside their conversation with Julian.')+'\n'+memoryBlock()+'CONVERSATION:\n'+histText()+'\nQuestion: "'+full+'"\nAnswer briefly in plain conversational '+langWord()+' (2–4 sentences). NEVER answer in JSON or with labels/keys — just talk. If you quote Japanese, add readings in square brackets after kanji.'; callLLM(p,function(model){ node.innerHTML='<div class="wb-role">Assistant</div><span class="lbl">trying '+esc(model)+'…</span>'; }).then(function(tx){ wbFinal(node,rubyfy(deJson(tx))); }).catch(function(e){ wbFinal(node,'API error: '+esc(e.message||String(e))); }); }
+  document.getElementById('wbSend').onclick=function(){ var v=document.getElementById('wbInput').value.trim(); if(!v)return; document.getElementById('wbInput').value=''; wbAsk(v,v,"(demo) add a key and I'll answer from the whole conversation."); };
+  document.getElementById('wbInput').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('wbSend').click(); });
+
+  // new conversation
+  var newSheet=document.getElementById('newSheet'), picked={}, importAfterCreate=false;
+  function renderPickList(){ var el=document.getElementById('pickList'); el.innerHTML=''; listedPeople().forEach(function(pid){ var p=store.people[pid]; var d=document.createElement('div'); d.className='pick'+(picked[pid]?' on':''); d.innerHTML='<div class="cb">'+(picked[pid]?'✓':'')+'</div>'+avatarHtml(p.color,p.icon,p.name,28)+'<div style="flex:1;"><div style="font-size:14px;font-weight:600;"></div><div style="font-size:11px;color:var(--muted);">'+regLabels[p.reg]+(p.lang==='en'?' · English':'')+'</div></div><span class="edit">edit</span>'; d.querySelector('div[style*="font-weight:600"]').textContent=p.name; d.querySelector('.edit').onclick=function(e){ e.stopPropagation(); newSheet.classList.remove('on'); openPersonEditor(pid,function(){ newSheet.classList.add('on'); renderPickList(); }); }; d.onclick=function(){ picked[pid]=!picked[pid]; renderPickList(); }; el.appendChild(d); }); }
+  document.getElementById('fab').onclick=function(){ picked={}; importAfterCreate=false; renderPickList(); newSheet.classList.add('on'); };
+  document.getElementById('newCancel').onclick=function(){ newSheet.classList.remove('on'); };
+  function startNew(){ var ids=Object.keys(picked).filter(function(k){return picked[k];}); if(!ids.length) return null; var key=convoKey(ids); if(!store.convos[key]){ var reg='casual'; ids.forEach(function(id){ if(REG_RANK[store.people[id].reg]>REG_RANK[reg]) reg=store.people[id].reg; }); store.convos[key]={parts:ids,reg:reg,msgs:[],wb:[],archived:false}; } store.convos[key].archived=false; save(); return key; }
+  document.getElementById('newStart').onclick=function(){ var key=startNew(); if(!key)return; newSheet.classList.remove('on'); openConvo(key); };
+  document.getElementById('newImportBtn').onclick=function(){ var key=startNew(); if(!key){ alert('Pick at least one person first.'); return; } newSheet.classList.remove('on'); openConvo(key); openImport(); };
+
+  // person editor
+  var personSheet=document.getElementById('personSheet'), editingPid=null, pRegVal='polite', pLangVal='ja', pColorVal=PALETTE[0], afterPerson=null;
+  function markGroup(sel,val,attr){ document.querySelectorAll(sel+' button').forEach(function(x){x.classList.toggle('on',x.dataset[attr]===val);}); }
+  function renderSwatches(){ var el=document.getElementById('pSwatches'); el.innerHTML=''; PALETTE.forEach(function(c){ var d=document.createElement('div'); d.className='sw'+(c===pColorVal?' on':''); d.style.background=c; d.onclick=function(){ pColorVal=c; renderSwatches(); updateAvPreview(); }; el.appendChild(d); }); }
+  function updateAvPreview(){ var el=document.getElementById('pAvPreview'); el.style.background=pColorVal; el.textContent=(document.getElementById('pIcon').value||document.getElementById('pName').value||'?').charAt(0); }
+  document.getElementById('pName').addEventListener('input',updateAvPreview); document.getElementById('pIcon').addEventListener('input',updateAvPreview);
+  document.querySelectorAll('#pReg button').forEach(function(x){ x.onclick=function(){ pRegVal=x.dataset.r; markGroup('#pReg',pRegVal,'r'); }; });
+  document.querySelectorAll('#pLang button').forEach(function(x){ x.onclick=function(){ pLangVal=x.dataset.l; markGroup('#pLang',pLangVal,'l'); }; });
+  function nextColor(){ var used={}; Object.keys(store.people).forEach(function(k){used[store.people[k].color]=1;}); for(var i=0;i<PALETTE.length;i++) if(!used[PALETTE[i]]) return PALETTE[i]; return PALETTE[Object.keys(store.people).length%PALETTE.length]; }
+  function openPersonEditor(pid,after){ editingPid=pid; afterPerson=after||null; var p=pid?store.people[pid]:null; document.getElementById('personTitle').textContent=p?('Edit '+p.name):'New person'; document.getElementById('pName').value=p?p.name:''; document.getElementById('pDesc').value=p?p.desc:''; document.getElementById('pIcon').value=p?(p.icon||''):''; pRegVal=p?p.reg:'polite'; pLangVal=p?(p.lang||'ja'):'ja'; pColorVal=p?p.color:nextColor(); markGroup('#pReg',pRegVal,'r'); markGroup('#pLang',pLangVal,'l'); renderSwatches(); updateAvPreview(); personSheet.classList.add('on'); }
+  document.getElementById('newPersonBtn').onclick=function(){ newSheet.classList.remove('on'); openPersonEditor(null,function(){ newSheet.classList.add('on'); renderPickList(); }); };
+  document.getElementById('personCancel').onclick=function(){ personSheet.classList.remove('on'); if(afterPerson)afterPerson(); };
+  document.getElementById('personSave').onclick=function(){ var name=document.getElementById('pName').value.trim(); if(!name)return; var desc=document.getElementById('pDesc').value.trim()||name, icon=document.getElementById('pIcon').value.trim(); if(editingPid){ var p=store.people[editingPid]; p.name=name; p.desc=desc; p.reg=pRegVal; p.lang=pLangVal; p.color=pColorVal; p.icon=icon; } else { var pid='p'+Math.random().toString(36).slice(2,8); store.people[pid]={name:name,desc:desc,reg:pRegVal,lang:pLangVal,color:pColorVal,icon:icon,memory:''}; picked[pid]=true; } save(); personSheet.classList.remove('on'); if(cur&&viewConvo.classList.contains('on')) openConvo(cur); renderChats(); if(afterPerson)afterPerson(); };
+
+  // markdown
+  function personMd(p){ return '---\nname: '+p.name+'\nregister: '+p.reg+'\nlang: '+(p.lang||'ja')+'\ncolor: '+p.color+(p.icon?('\nicon: '+p.icon):'')+'\n---\n\n'+p.desc+'\n\n## Memory\n'+(p.memory?p.memory:'(none yet — use ⋮ → Update memory from a chat)')+'\n'; }
+  document.getElementById('mdBtn').onclick=function(){ var p=editingPid?store.people[editingPid]:{name:document.getElementById('pName').value||'(unnamed)',reg:pRegVal,lang:pLangVal,color:pColorVal,icon:document.getElementById('pIcon').value,desc:document.getElementById('pDesc').value||'',memory:''}; document.getElementById('mdText').textContent=personMd(p); document.getElementById('mdSheet').classList.add('on'); };
+  document.getElementById('mdBack').onclick=function(){ document.getElementById('mdSheet').classList.remove('on'); };
+  document.getElementById('mdCopy').onclick=function(){ navigator.clipboard&&navigator.clipboard.writeText(document.getElementById('mdText').textContent); document.getElementById('mdCopy').textContent='copied'; setTimeout(function(){document.getElementById('mdCopy').textContent='copy';},1200); };
+
+  // conversation menu
+  var menuSheet=document.getElementById('menuSheet');
+  document.getElementById('menuBtn').onclick=function(){ document.getElementById('menuTitle').textContent=convoName(C()); document.getElementById('menuStatus').textContent=''; var mp=document.getElementById('menuPeople'); mp.innerHTML=''; partsOf(C()).filter(function(x){return !x.p.guest;}).forEach(function(x){ var d=document.createElement('div'); d.className='menuitem'; d.innerHTML='✎ Edit <b style="font-weight:600;margin-left:2px;"></b>'; d.querySelector('b').textContent=x.p.name; d.onclick=function(){ menuSheet.classList.remove('on'); openPersonEditor(x.id); }; mp.appendChild(d); }); document.getElementById('menuAssign').style.display = C().parts.indexOf('guest')>-1 ? '' : 'none'; document.getElementById('menuPinChat').textContent=C().pinnedChat?'📌 Unpin chat from top':'📌 Pin chat to top'; document.getElementById('menuArchive').textContent=C().archived?'📤 Unarchive conversation':'🗄 Archive conversation'; document.getElementById('menuUnmerge').style.display=(store.lastMerge&&store.lastMerge.target===cur)?'':'none'; menuSheet.classList.add('on'); };
+  document.getElementById('menuPinChat').onclick=function(){ C().pinnedChat=!C().pinnedChat; save(); menuSheet.classList.remove('on'); renderChats(); };
+  document.getElementById('menuClose').onclick=function(){ menuSheet.classList.remove('on'); };
+  document.getElementById('menuArchive').onclick=function(){ C().archived=!C().archived; save(); menuSheet.classList.remove('on'); renderChats(); showView('chats'); };
+  document.getElementById('menuDelete').onclick=function(){ if(!confirm('Delete this conversation and its messages? (People are kept.)'))return; delete store.convos[cur]; save(); cur=null; menuSheet.classList.remove('on'); renderChats(); showView('chats'); };
+
+  // rename + AI title
+  document.getElementById('menuRename').onclick=function(){ var v=prompt('Name this chat:', C().name||C().title||''); if(v===null)return; C().name=v.trim()||null; if(!C().name) delete C().name; save(); document.getElementById('cName').textContent=convoName(C()); document.getElementById('menuTitle').textContent=convoName(C()); menuSheet.classList.remove('on'); };
+  function aiTitle(silent){ if(!liveOn()||!C().msgs.length) return Promise.resolve(); var k=cur; var p='Conversation:\n'+histFull()+'\n\nGive this conversation a specific 3–6 word English title describing what it is about (not who — the topic). Return ONLY JSON: {"title":"..."}'; return callLLM(p,null,{json:true,timeout:20000}).then(function(tx){ var j=parseModelJSON(tx); if(j.title&&store.convos[k]){ store.convos[k].title=String(j.title).slice(0,60); save(); if(cur===k) document.getElementById('cName').textContent=convoName(C()); } }).catch(function(e){ if(!silent) document.getElementById('menuStatus').textContent='Couldn\'t name it: '+(e.message||e); }); }
+  document.getElementById('menuAiName').onclick=function(){ if(!liveOn()){ document.getElementById('menuStatus').textContent='Needs a live AI — add a key in ⚙.'; return; } document.getElementById('menuStatus').innerHTML='<div class="spinner"></div>'; aiTitle(false).then(function(){ document.getElementById('menuStatus').textContent=C().title?('✓ “'+C().title+'”'):'no title'; renderChats(); }); };
+
+  // generic list sheet
+  var listSheet=document.getElementById('listSheet');
+  function openList(title,hint){ document.getElementById('listTitle').textContent=title; document.getElementById('listHint').textContent=hint||''; document.getElementById('listBody').innerHTML=''; listSheet.classList.add('on'); return document.getElementById('listBody'); }
+  document.getElementById('listClose').onclick=function(){ listSheet.classList.remove('on'); };
+
+  // talking points
+  document.getElementById('menuTopics').onclick=function(){
+    menuSheet.classList.remove('on');
+    var body=openList('🧭 Talking points','Tap a topic to jump to where it starts.');
+    var c=C();
+    function show(items){ body.innerHTML=''; items.forEach(function(tp){ var d=document.createElement('div'); d.className='menuitem'; d.textContent=tp.label; d.onclick=function(){ listSheet.classList.remove('on'); scrollToMsg(tp.i); }; body.appendChild(d); }); }
+    if(c.topics && c.topics.n===c.msgs.length){ show(c.topics.items); return; }
+    if(!liveOn()){ body.innerHTML='<div class="lbl">Needs a live AI — add a key in ⚙.</div>'; return; }
+    body.innerHTML='<div class="spinner"></div>';
+    var p='Conversation (numbered messages):\n'+histFull()+'\n\nList the 3–8 distinct topics discussed, in order. For each give the NUMBER of the message where it starts and a short label (2–5 words, in English). Return ONLY JSON: {"topics":[{"i":0,"label":"..."}]}';
+    callLLM(p,null,{json:true,timeout:25000,maxTokens:1024}).then(function(tx){ var j=parseModelJSON(tx); var items=(j.topics||[]).filter(function(t){return t&&t.label&&t.i>=0&&t.i<c.msgs.length;}).map(function(t){return {i:Math.floor(t.i),label:String(t.label)};}); if(!items.length) throw new Error('no topics found'); c.topics={n:c.msgs.length,items:items}; save(); show(items); }).catch(function(e){ body.innerHTML='<div class="lbl">Couldn\'t read topics: '+esc(e.message||String(e))+'</div>'; });
+  };
+
+  // merge conversations
+  document.getElementById('menuMerge').onclick=function(){
+    menuSheet.classList.remove('on');
+    var body=openList('🔀 Merge into…','Everything moves into the chat you pick (sorted by time); this chat is then removed.');
+    var others=Object.keys(store.convos).filter(function(k){return k!==cur;});
+    if(!others.length){ body.innerHTML='<div class="lbl">No other conversation to merge into.</div>'; return; }
+    others.sort(function(a,b){ var A=store.convos[a].parts.join()===C().parts.join()?0:1, B=store.convos[b].parts.join()===C().parts.join()?0:1; return A-B; });
+    others.forEach(function(k){ var o=store.convos[k]; var d=document.createElement('div'); d.className='menuitem'; d.textContent=convoName(o)+(o.title?' · '+o.title:'')+' ('+o.msgs.length+' msgs)'; d.onclick=function(){
+      if(!confirm('Merge “'+convoName(C())+'” into “'+convoName(o)+'”?')) return;
+      mergeConvos(k,[cur]); listSheet.classList.remove('on'); openConvo(k); renderChats();
+    }; body.appendChild(d); });
+  };
+  // Shared merge: snapshots everything first (for Unmerge), leaves a visible marker line in the merged thread
+  function mergeConvos(targetK, srcKs){
+    var snap={target:targetK, targetJson:JSON.stringify(store.convos[targetK]), sources:{}};
+    srcKs.forEach(function(k){ snap.sources[k]=JSON.stringify(store.convos[k]); });
+    var tgt=store.convos[targetK], names=[];
+    if(Array.isArray(tgt.wb)) tgt.wb={me:tgt.wb}; if(!tgt.wb) tgt.wb={};
+    srcKs.forEach(function(k){ var src=store.convos[k]; names.push(convoName(src)+(src.title?' · '+src.title:'')+' ('+src.msgs.length+' msgs)');
+      tgt.msgs=tgt.msgs.concat(src.msgs);
+      if(Array.isArray(src.wb)) src.wb={me:src.wb};
+      Object.keys(src.wb||{}).forEach(function(sk){ tgt.wb[sk]=(tgt.wb[sk]||[]).concat(src.wb[sk]); });
+      src.parts.forEach(function(pid){ if(tgt.parts.indexOf(pid)<0 && pid!=='guest') tgt.parts.push(pid); });
+      delete store.convos[k];
+    });
+    if(tgt.parts.length>1) tgt.parts=tgt.parts.filter(function(p){return p!=='guest';});
+    tgt.msgs.sort(function(a,b){return (a.ts||0)-(b.ts||0);});
+    tgt.msgs.push({sys:true, en:'🔀 merged in: '+names.join(' + ')+' — undo via ⋮ Unmerge', ts:Date.now()});
+    delete tgt.topics; delete tgt._suggs;
+    store.lastMerge=snap; save();
+  }
+  document.getElementById('menuUnmerge').onclick=function(){
+    var lm=store.lastMerge; if(!lm||lm.target!==cur) return;
+    if(!confirm('Undo the last merge? The merged-in chats come back exactly as they were.')) return;
+    store.convos[lm.target]=JSON.parse(lm.targetJson);
+    Object.keys(lm.sources).forEach(function(k){ store.convos[k]=JSON.parse(lm.sources[k]); });
+    delete store.lastMerge; save(); menuSheet.classList.remove('on'); openConvo(cur); renderChats();
+  };
+
+  // assign a quick chat to a real person
+  document.getElementById('menuAssign').onclick=function(){
+    menuSheet.classList.remove('on');
+    var body=openList('👤 Assign to a person','This quick chat becomes a normal chat with them.');
+    function assignQuick(pid){ var c=C(); c.parts=c.parts.filter(function(x){return x!=='guest';}); if(c.parts.indexOf(pid)<0) c.parts.unshift(pid); c.reg=c.reg||store.people[pid].reg;
+      c.msgs.forEach(function(m){ if(m.by==='guest') m.by=pid; });                       // "Someone"'s turns become theirs
+      if(c.name==='Quick chat') delete c.name;                                           // chat renames to the person
+      if(c.speaker==='guest') c.speaker=pid; if(activeSpeaker==='guest') activeSpeaker=c.speaker||'me';
+      if(c.wb&&!Array.isArray(c.wb)&&c.wb.guest){ c.wb[pid]=(c.wb[pid]||[]).concat(c.wb.guest); delete c.wb.guest; }
+      save(); openConvo(cur); renderChats(); }
+    listedPeople().forEach(function(pid){ var p=store.people[pid]; var d=document.createElement('div'); d.className='menuitem'; d.textContent=p.name; d.onclick=function(){ listSheet.classList.remove('on'); assignQuick(pid); }; body.appendChild(d); });
+    var np=document.createElement('div'); np.className='menuitem'; np.style.color='var(--acc)'; np.textContent='＋ New person…'; np.onclick=function(){ listSheet.classList.remove('on'); openPersonEditor(null,function(){ var ids=Object.keys(picked).filter(function(k){return picked[k];}); if(ids.length){ picked={}; assignQuick(ids[0]); } }); }; body.appendChild(np);
+  };
+
+  // quick-start bar (Chats page) — instant guest chat, no person needed
+  var quickInput=document.getElementById('quickInput');
+  function startQuick(text){ var id='q'+Date.now().toString(36); store.convos[id]={parts:['guest'],reg:'polite',msgs:[],wb:{},archived:false,name:'Quick chat'}; save(); localStorage.removeItem('bt_draft_quickbar'); openConvo(id); if(text){ input.value=text; autoresize(); send.disabled=false; input.focus(); } }
+  quickInput.addEventListener('input',function(){ document.getElementById('quickGo').disabled=quickInput.value.trim()===''; if(quickInput.value) localStorage.setItem('bt_draft_quickbar',quickInput.value); else localStorage.removeItem('bt_draft_quickbar'); });
+  quickInput.value=localStorage.getItem('bt_draft_quickbar')||''; document.getElementById('quickGo').disabled=quickInput.value.trim()==='';
+  quickInput.addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); if(quickInput.value.trim()){ var v=quickInput.value.trim(); quickInput.value=''; startQuick(v); } } });
+  document.getElementById('quickGo').onclick=function(){ var v=quickInput.value.trim(); if(!v)return; quickInput.value=''; document.getElementById('quickGo').disabled=true; startQuick(v); };
+  // ===== Dictation: record REAL audio (MediaRecorder), transcribe with Whisper (OpenAI key) or Gemini audio =====
+  // Wispr-Flow-style safety: every recording is saved to IndexedDB BEFORE transcription is attempted,
+  // so a network failure never loses your words — retry/replay from ⚙ → Dictation history.
+  var idb=null;
+  function idbOpen(){ return new Promise(function(res,rej){ if(idb)return res(idb); var q=indexedDB.open('bt_audio',1); q.onupgradeneeded=function(){ q.result.createObjectStore('recs',{keyPath:'id'}); }; q.onsuccess=function(){ idb=q.result; res(idb); }; q.onerror=function(){ rej(q.error); }; }); }
+  function idbPut(r){ return idbOpen().then(function(db){ return new Promise(function(res,rej){ var t=db.transaction('recs','readwrite'); t.objectStore('recs').put(r); t.oncomplete=function(){res(r);}; t.onerror=function(){rej(t.error);}; }); }); }
+  function idbAll(){ return idbOpen().then(function(db){ return new Promise(function(res,rej){ var q=db.transaction('recs').objectStore('recs').getAll(); q.onsuccess=function(){res(q.result||[]);}; q.onerror=function(){rej(q.error);}; }); }); }
+  function idbDel(id){ return idbOpen().then(function(db){ return new Promise(function(res){ var t=db.transaction('recs','readwrite'); t.objectStore('recs').delete(id); t.oncomplete=res; t.onerror=res; }); }); }
+  function pruneRecs(){ idbAll().then(function(all){ all.sort(function(a,b){return b.id-a.id;}); all.slice(30).forEach(function(r){ idbDel(r.id); }); }).catch(function(){}); }
+  function blobB64(blob){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){ res(String(r.result).split(',')[1]); }; r.onerror=rej; r.readAsDataURL(blob); }); }
+  function transcribe(blob){
+    if(cfg.oaKey){
+      var fd=new FormData(); fd.append('file',blob,'audio.webm'); fd.append('model','whisper-1');
+      return fetchT('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':'Bearer '+cfg.oaKey},body:fd},45000)
+        .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('Whisper HTTP '+r.status));}); return r.json(); })
+        .then(function(d){ return String(d.text||'').trim(); });
+    }
+    if(cfg.provider==='gemini' && cfg.key){
+      return blobB64(blob).then(function(b64){
+        var body={contents:[{parts:[{text:'Transcribe this audio recording verbatim in its original language (English or Japanese). Return ONLY the transcript text — no labels, no commentary. If nothing intelligible was said, return an empty string.'},{inline_data:{mime_type:blob.type||'audio/webm',data:b64}}]}],generationConfig:{maxOutputTokens:2048}};
+        function tryModels(models,lastErr){ if(!models.length) return Promise.reject(lastErr||new Error('no Gemini model transcribed'));
+          return fetchT('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(models[0])+':generateContent?key='+encodeURIComponent(cfg.key),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},45000)
+            .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('HTTP '+r.status));}); return r.json(); })
+            .then(function(d){ if(!d.candidates||!d.candidates[0].content||!d.candidates[0].content.parts) throw new Error('empty response'); return String(d.candidates[0].content.parts[0].text||'').trim(); })
+            .catch(function(e){ if(/api key|permission|unauthoriz|billing/i.test(e.message||'')) throw e; return tryModels(models.slice(1),e); });
+        }
+        return tryModels(geminiModelChain());
+      });
+    }
+    return Promise.reject(new Error('Dictation needs a Gemini key or an OpenAI key (⚙).'));
+  }
+  var rec={live:false, mr:null, chunks:[], busy:false};
+  function btnRecState(btn,state){ if(!btn)return; if(state==='rec'){ btn.textContent='■'; btn.style.background='#B4413E'; btn.style.color='#fff'; } else if(state==='busy'){ btn.textContent='…'; btn.style.background=''; btn.style.color=''; } else { btn.textContent='🎤'; btn.style.background='var(--card)'; btn.style.color='var(--muted)'; } }
+  function recordToggle(into,btn){
+    if(rec.live){ try{rec.mr.stop();}catch(e){} return; }
+    if(rec.busy) return;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ alert('This browser blocks microphone recording here. Wispr Flow / system dictation still works — focus the box and dictate.'); return; }
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+      rec.mr=new MediaRecorder(stream); rec.chunks=[]; rec.live=true; btnRecState(btn,'rec');
+      rec.mr.ondataavailable=function(e){ if(e.data&&e.data.size) rec.chunks.push(e.data); };
+      rec.mr.onstop=function(){
+        rec.live=false; stream.getTracks().forEach(function(t){t.stop();});
+        var blob=new Blob(rec.chunks,{type:rec.mr.mimeType||'audio/webm'});
+        if(blob.size<1200){ btnRecState(btn,''); return; }  // accidental tap
+        var entry={id:Date.now(), ts:Date.now(), blob:blob, text:'', status:'pending', convo:cur||''};
+        idbPut(entry).catch(function(){});  // saved BEFORE transcription — recoverable no matter what happens next
+        rec.busy=true; btnRecState(btn,'busy');
+        transcribe(blob).then(function(text){
+          entry.text=text; entry.status=text?'ok':'empty'; idbPut(entry).catch(function(){}); pruneRecs();
+          if(text){ into.value=(into.value?into.value+' ':'')+text; into.dispatchEvent(new Event('input')); into.focus(); }
+        }).catch(function(e){
+          entry.status='failed'; idbPut(entry).catch(function(){});
+          alert('Transcription failed ('+(e.message||e)+') — your recording is SAVED. Retry it from ⚙ → Dictation history.');
+        }).then(function(){ rec.busy=false; btnRecState(btn,''); });
+      };
+      rec.mr.start();
+    }).catch(function(e){ alert('Microphone blocked: '+(e.message||e)+' — allow mic access for this page and try again.'); });
+  }
+  // Dictation history — replay, re-transcribe, insert, delete
+  document.getElementById('dictHistBtn').onclick=function(){
+    setSheet.classList.remove('on');
+    var body=openList('🎙 Dictation history','Last 30 recordings — every dictation is kept, even failed ones. Tap a transcript to copy it.');
+    idbAll().then(function(all){
+      all.sort(function(a,b){return b.id-a.id;});
+      if(!all.length){ body.innerHTML='<div class="lbl">No recordings yet — tap a 🎤 and talk.</div>'; return; }
+      all.forEach(function(r){
+        var d=document.createElement('div'); d.className='menuitem'; d.style.alignItems='flex-start';
+        var st= r.status==='ok'?'✓' : r.status==='failed'?'⚠' : r.status==='empty'?'∅' : '…';
+        d.innerHTML='<div style="flex:1;min-width:0;"><div style="font-size:13px;white-space:normal;"></div><div class="lbl" style="margin:2px 0 0;">'+st+' · '+fmtWhen(r.ts)+' '+fmtTime(r.ts)+'</div></div><span style="display:flex;gap:6px;flex-shrink:0;"><button class="chip" data-a="play">▶</button>'+(r.status!=='ok'?'<button class="chip" data-a="retry">↻</button>':'')+'<button class="chip" data-a="del" style="color:#B4413E;">✕</button></span>';
+        d.children[0].children[0].textContent=r.text||'(not transcribed yet)';
+        d.querySelector('[data-a="play"]').onclick=function(e){ e.stopPropagation(); try{ new Audio(URL.createObjectURL(r.blob)).play(); }catch(err){ alert('Could not play: '+err.message); } };
+        var rb=d.querySelector('[data-a="retry"]'); if(rb) rb.onclick=function(e){ e.stopPropagation(); rb.textContent='…'; transcribe(r.blob).then(function(text){ r.text=text; r.status=text?'ok':'empty'; return idbPut(r); }).then(function(){ document.getElementById('dictHistBtn').onclick(); }).catch(function(err){ rb.textContent='↻'; alert('Still failing: '+(err.message||err)); }); };
+        d.querySelector('[data-a="del"]').onclick=function(e){ e.stopPropagation(); idbDel(r.id).then(function(){ document.getElementById('dictHistBtn').onclick(); }); };
+        d.onclick=function(){ if(!r.text) return; navigator.clipboard&&navigator.clipboard.writeText(r.text); d.children[0].children[1].textContent='copied to clipboard ✓'; };
+        body.appendChild(d);
+      });
+    }).catch(function(e){ body.innerHTML='<div class="lbl">Could not open the audio store: '+esc(e.message||String(e))+'</div>'; });
+  };
+  document.getElementById('quickMic').onclick=function(){ recordToggle(quickInput, document.getElementById('quickMic')); };
+
+  // in-person mode — turn-based interpreter (PRD §17.1)
+  var talkSheet=document.getElementById('talkSheet'), talkSide='me';
+  function talkOther(){ var x=partsOf(C())[0]; return x?{id:x.id,name:x.p.name,lang:x.p.lang||'ja'}:{id:'guest',name:'Them',lang:'ja'}; }
+  function talkJa(){ return talkSide==='them' && talkOther().lang==='ja'; }  // the Japanese speaker's side is active → the whole sheet speaks Japanese
+  function talkClear(){ document.getElementById('talkOut').innerHTML=''; document.getElementById('talkCompose').style.display='flex'; }
+  function renderTalkSides(){
+    var o=talkOther(); var el=document.getElementById('talkSides'); el.innerHTML='';
+    [['me','Julian · English'],['them',o.name+' · '+(o.lang==='ja'?'日本語':'English')]].forEach(function(s){ var b=document.createElement('button'); b.textContent=s[1]; b.className=talkSide===s[0]?'on':''; b.onclick=function(){ talkSide=s[0]; switchSpeaker(s[0]==='me'?'me':o.id); document.getElementById('talkInput').value=''; talkClear(); renderTalkSides(); }; el.appendChild(b); });
+    var ja=talkJa();
+    document.getElementById('talkInput').placeholder = ja ? '話すか、入力してください…' : 'Speak or type…';
+    document.getElementById('talkMic').textContent = ja ? '🎤 話す' : '🎤 Speak';
+    document.getElementById('talkGo').textContent = ja ? '翻訳' : 'Translate';
+  }
+  function openTalk(){ talkSide='me'; renderTalkSides(); document.getElementById('talkInput').value=localStorage.getItem('bt_draft_talk_'+cur)||''; talkClear(); document.getElementById('talkStatus').textContent=''; talkSheet.classList.add('on'); }
+  document.getElementById('menuTalk').onclick=function(){ menuSheet.classList.remove('on'); openTalk(); };
+  document.getElementById('quickTalk').onclick=function(){ newSheet.classList.remove('on'); startQuick(''); openTalk(); };
+  document.getElementById('talkClose').onclick=function(){ talkSheet.classList.remove('on'); renderThread(true); renderSuggs(); };
+  document.getElementById('talkMic').onclick=function(){ recordToggle(document.getElementById('talkInput'), document.getElementById('talkMic')); };
+  // typing again after a result = starting the next attempt — bring the compose buttons back
+  document.getElementById('talkInput').addEventListener('input',function(){ if(document.getElementById('talkCompose').style.display==='none') talkClear(); var v=document.getElementById('talkInput').value; if(cur){ if(v) localStorage.setItem('bt_draft_talk_'+cur,v); else localStorage.removeItem('bt_draft_talk_'+cur); } });
+  document.getElementById('talkGo').onclick=function(){
+    var v=document.getElementById('talkInput').value.trim(); if(!v)return;
+    if(!liveOn()){ document.getElementById('talkStatus').textContent='In-person mode needs a live AI — add a key in ⚙.'; return; }
+    var o=talkOther(), out=document.getElementById('talkOut'), ja=talkJa();
+    out.innerHTML='<div class="spinner"></div>';
+    var toJa = talkSide==='me';
+    var noComment='no comments, no notes about spelling/grammar/politeness, no parentheses — ONLY the translation itself';
+    var p = toJa
+      ? 'Julian is speaking IN PERSON to '+o.name+'. Translate his English into natural spoken Japanese ('+REGDESC[register]+'). He said: "'+v+'"\nReturn ONLY JSON: {"japanese":"the Japanese; readings in square brackets ONLY after kanji words, never after kana","back_translation":"faithful plain English — '+noComment+'"}'
+      : o.name+' is speaking IN PERSON to Julian in Japanese (may contain typos/mis-kana — interpret what they meant, silently corrected). They said: "'+v+'"\nReturn ONLY JSON: {"japanese":"their Japanese, corrected; readings in square brackets ONLY after kanji, never after kana","back_translation":"natural plain English translation — '+noComment+'"}';
+    callLLM(p,null,{json:true,timeout:20000}).then(function(tx){ var j=parseModelJSON(tx);
+      // AUTO-KEEP: translating IS sending — the turn lands in the chat immediately, no extra button.
+      // The speaker does NOT switch: people say several things in a row. Tap the other side to pass the phone.
+      var m={who:(talkSide==='me'?'me':'them'),jp:rubyfy(j.japanese||''),en:String(j.back_translation||(toJa?v:'')),ts:Date.now(),imported:true,source:'talk'}; if(m.who==='them') m.by=o.id; if(toJa) m.en=v;
+      C().msgs.push(m); save(); renderThread(true); localStorage.removeItem('bt_draft_talk_'+cur);
+      var big = toJa ? rubyfy(j.japanese||'') : esc(j.back_translation||'');
+      var small = toJa ? esc(j.back_translation||'') : rubyfy(j.japanese||'');
+      var speakTxt = toJa ? plain(rubyfy(j.japanese||'')) : String(j.back_translation||'');
+      document.getElementById('talkInput').value='';
+      out.innerHTML='<div class="jp" style="font-size:23px;text-align:center;padding:6px 0;">'+big+'</div><div class="lbl" style="text-align:center;">'+small+'</div><div style="display:flex;gap:8px;justify-content:center;margin-top:10px;"><button class="btn" id="talkSpeak" style="flex:none;padding:10px 20px;">'+(ja?'🔊 読み上げ':'🔊 Say it')+'</button></div><div class="lbl" style="text-align:center;margin-top:6px;">✓ '+(ja?'追加しました — 続けて話せます':'in the chat — say more, or tap the other side to switch')+'</div>';
+      document.getElementById('talkSpeak').onclick=function(){ try{ var u=new SpeechSynthesisUtterance(speakTxt); u.lang=toJa?'ja-JP':'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){} };
+    }).catch(function(e){ out.innerHTML='<div class="flag warn">⚠ '+esc(e.message||String(e))+'</div>'; });
+  };
+
+  // people-in-chat management
+  var peopleSheet=document.getElementById('peopleSheet');
+  function renderPeopleSheet(){
+    var el=document.getElementById('peopleList'); el.innerHTML='';
+    partsOf(C()).forEach(function(x){ var d=document.createElement('div'); d.className='prow'; d.innerHTML=avatarHtml(x.p.color,x.p.icon,x.p.name,28)+'<div style="flex:1;font-size:14px;"></div><span class="x">✕</span>'; d.querySelector('div[style*="flex:1"]').textContent=x.p.name; d.querySelector('.x').onclick=function(){ if(C().parts.length<=1){ alert('A conversation needs at least one person.'); return; } C().parts=C().parts.filter(function(id){return id!==x.id;}); if(activeSpeaker===x.id) activeSpeaker='me'; save(); renderPeopleSheet(); renderAddList(); document.getElementById('cName').textContent=convoName(C()); applyLang(); renderThread(); }; el.appendChild(d); });
+  }
+  function renderAddList(){ var el=document.getElementById('addList'); el.innerHTML=''; listedPeople().filter(function(pid){return C().parts.indexOf(pid)<0;}).forEach(function(pid){ var p=store.people[pid]; var d=document.createElement('div'); d.className='prow'; d.style.cursor='pointer'; d.innerHTML=avatarHtml(p.color,p.icon,p.name,28)+'<div style="flex:1;font-size:14px;"></div><span style="color:var(--acc);font-size:13px;">add</span>'; d.querySelector('div[style*="flex:1"]').textContent=p.name; d.onclick=function(){ C().parts.push(pid); save(); renderPeopleSheet(); renderAddList(); document.getElementById('cName').textContent=convoName(C()); renderThread(); }; el.appendChild(d); }); }
+  document.getElementById('menuManage').onclick=function(){ menuSheet.classList.remove('on'); renderPeopleSheet(); document.getElementById('addList').innerHTML=''; peopleSheet.classList.add('on'); };
+  document.getElementById('addPersonToConvo').onclick=function(){ renderAddList(); };
+  document.getElementById('peopleDone').onclick=function(){ peopleSheet.classList.remove('on'); };
+
+  // memory
+  document.getElementById('menuMemory').onclick=function(){
+    if(!liveOn()){ document.getElementById('menuStatus').textContent='Memory needs a live AI — add a key in ⚙.'; return; }
+    var ps=partsOf(C()).filter(function(x){return !x.p.guest;}); if(!ps.length){ document.getElementById('menuStatus').textContent='Quick chats have no person — assign one first (👤).'; return; } document.getElementById('menuStatus').innerHTML='<div class="spinner"></div>';
+    var seq=ps.reduce(function(chain,x){ return chain.then(function(){ var p=x.p; var prompt='You maintain a running MEMORY note about '+p.name+' for Julian ('+p.desc+').\nExisting memory:\n'+(p.memory||'(empty)')+'\nNew conversation:\n'+histText()+'\nReturn an UPDATED memory as concise markdown bullet points: merge new durable facts/plans/preferences into the existing memory, dedupe, keep it tight (max ~8 bullets). Return ONLY the bullet list, no preamble.'; return callLLM(prompt).then(function(txt){ p.memory=String(txt).trim(); save(); }); }); }, Promise.resolve());
+    seq.then(function(){ document.getElementById('menuStatus').textContent='Memory updated ✓ (see ⋮ → Edit → view .md)'; }).catch(function(e){ document.getElementById('menuStatus').textContent='Couldn\'t update: '+(e.message||e); });
+  };
+
+  // import
+  var importSheet=document.getElementById('importSheet');
+  function openImport(){ document.getElementById('importText').value=''; document.getElementById('importStatus').textContent=''; document.getElementById('importFileName').textContent=''; impSrcVal='pasted'; document.querySelectorAll('#impSrc button').forEach(function(y){y.classList.toggle('on',y.dataset.s==='pasted');}); importSheet.classList.add('on'); }
+  document.getElementById('menuImport').onclick=function(){ menuSheet.classList.remove('on'); openImport(); };
+  document.getElementById('importCancel').onclick=function(){ importSheet.classList.remove('on'); };
+  document.getElementById('importFileBtn').onclick=function(){ document.getElementById('importFile').click(); };
+  document.getElementById('importFile').onchange=function(e){ var f=e.target.files&&e.target.files[0]; if(!f)return; var nm=(f.name||'').toLowerCase(); if(/\.(md|markdown|txt)$/.test(nm)&&(nm.indexOf('line')>-1)) { impSrcVal='line'; document.querySelectorAll('#impSrc button').forEach(function(y){y.classList.toggle('on',y.dataset.s==='line');}); } var r=new FileReader(); r.onload=function(){ var txt=String(r.result||''); document.getElementById('importText').value=txt; document.getElementById('importFileName').textContent='✓ '+f.name+' ('+Math.round(txt.length/1000)+'k chars) — tap Import'; document.getElementById('importStatus').textContent=''; }; r.onerror=function(){ document.getElementById('importFileName').textContent='could not read that file'; }; r.readAsText(f); e.target.value=''; };
+  function chunkText(text, budget){
+    var blocks=text.split(/\n\s*\n/), chunks=[], cur='';
+    blocks.forEach(function(bl){ bl=bl.replace(/\s+$/,''); if(!bl.trim()) return;
+      if(bl.length>budget){ var lines=bl.split(/\r?\n/); lines.forEach(function(ln){ if(cur.length && (cur.length+ln.length+1)>budget){ chunks.push(cur); cur=''; } cur+=(cur?'\n':'')+ln; }); return; }
+      if(cur.length && (cur.length+bl.length+2)>budget){ chunks.push(cur); cur=''; }
+      cur+=(cur?'\n\n':'')+bl;
+    });
+    if(cur.trim()) chunks.push(cur); return chunks;
+  }
+  function extractArray(txt){ try{ var a=parseModelJSON(txt); if(Array.isArray(a)) return a; if(a&&Array.isArray(a.messages)) return a.messages; }catch(e){} var m=String(txt).match(/\[[\s\S]*\]/); if(m){ try{ return JSON.parse(m[0]); }catch(e2){} } return null; }
+  var impSrcVal='pasted';
+  document.querySelectorAll('#impSrc button').forEach(function(x){ x.onclick=function(){ impSrcVal=x.dataset.s; document.querySelectorAll('#impSrc button').forEach(function(y){y.classList.toggle('on',y.dataset.s===impSrcVal);}); }; });
+  function srcLabel(s){ return {photo:'📷 from photo', line:'from LINE', chatgpt:'from ChatGPT', talk:'in person'}[s]||'imported'; }
+  // Deterministic parser for ChatGPT/Claude markdown exports (## Prompt: / ## Response:)
+  function _parseTs(line){ if(!line) return null; var m=String(line).match(/\d{1,2}\/\d{1,2}\/\d{4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?/i); if(m){ var d=new Date(m[0].replace(',','')); if(!isNaN(d.getTime())) return d.getTime(); } return null; }
+  function _stripTs(body){ var l=String(body).split(/\r?\n/); if(l.length && /\d{1,2}\/\d{1,2}\/\d{4}/.test(l[0])) l.shift(); return l.join('\n').replace(/!\[[^\]]*\]\([^)]*\)/g,' ').trim(); }
+  function _cleanBody(s){ return String(s).replace(/\*\*/g,'').replace(/^[-—]{2,}\s*$/gm,'').replace(/^\s*[（(][^\n]*[）)]\s*$/gm,'').replace(/^\s*Romaji[:：][^\n]*$/gim,'').trim(); }
+  function _sections(resp){ var out={}, parts=String(resp).split(/\*\*([^*\n]{1,50}?)\*\*[：:]?/); for(var i=1;i<parts.length;i+=2){ var label=(parts[i]||'').toLowerCase().trim(); out[label]=_cleanBody((parts[i+1]||'').replace(/^[：:\s]+/,'')); } return out; }
+  function _pick(secs,re,excl){ var k=Object.keys(secs); for(var i=0;i<k.length;i++){ if(re.test(k[i]) && (!excl||!excl.test(k[i]))) return secs[k[i]]; } return ''; }
+  function _ratio(s){ return {ja:(String(s).match(/[぀-ヿ㐀-鿿]/g)||[]).length, la:(String(s).match(/[a-zA-Z]/g)||[]).length}; }
+  // Strip a leading workbench instruction ("Say that…", "Ask him…", "Translate…") so the English gloss reads like a message, not a command
+  function _stripInstr(s){ var out=String(s).replace(/^\s*(?:please\s+)?(?:can you\s+)?(?:also\s+)?(?:just\s+)?(?:translate(?:\s+(?:this|that|to japanese|english to japanese(?:\s+and vice versa)?))?|say(?:\s+(?:that|this))?|tell (?:him|her|them|sho)(?:\s+that)?|ask (?:him|her|them|sho|if)|let (?:him|her|them|sho) know(?:\s+that)?|mention(?:\s+that)?|explain(?:\s+that)?|put (?:this|it|that)(?:\s+(?:also\s+)?in(?:to)?[^\n,]*)?|write(?:\s+a\s+(?:text|message))?)\b[ \t]*[:：,\.]?[ \t]*\r?\n?/i,'').trim(); return out||String(s).trim(); }
+  // Cut ChatGPT's coaching/advisor tail ("Strategic note:", "One question:", option lists) that a persona-GPT appends after the actual message
+  function _cutAdvisor(s){ return String(s).split(/\n\s*(?:\*\*)?(?:Strategic note|One question|One thing to consider|If you(?:'| a|'d| w| want| like)|Would you like|Here (?:is|are)|Note\s*:|Let me know|Casual|Stronger|Describing|English equivalent|Romaji\s*:|Powered by|\(or\b)/i)[0].trim(); }
+  // Keep only the Japanese-dominant lines (drops English advisor prose that leaks into the message body)
+  function _jpBlock(s){ var lines=String(s).split(/\r?\n/), keep=[]; for(var i=0;i<lines.length;i++){ var ln=lines[i], r=_ratio(ln); if(r.ja>=1 && r.ja>=r.la) keep.push(ln.trim()); } return keep.join('\n').replace(/\n{2,}/g,'\n').trim(); }
+  // A meta-correction prompt ("No, translate that to Japanese", "It's supposed to be in Japanese") — the response is a redo, so its English "gloss" is worthless
+  function _isMeta(p){ p=String(p).trim(); return /^(?:no[,.\s]|okay[,.\s]*no\b|oh[.!\s]*$|sample to be\b|it'?s supposed to be\b|just translate\b|why (?:is there|are there)|don'?t (?:say|use)\b)/i.test(p) || /\b(?:supposed to (?:be|translate)|you'?re supposed to)\b/i.test(p); }
+  function _norm(s){ return plain(s).replace(/[\s、。，．！？!?,.　]/g,''); }
+  function _dupEn(a,b){ var x=_norm(a.en||''),y=_norm(b.en||''); return x&&y&&x.length>8&&(x.indexOf(y)>-1||y.indexOf(x)>-1); }
+  function parseChatGPTExport(text){
+    if((String(text).match(/##\s*Prompt\s*:/gi)||[]).length<2) return null;
+    var re=/##\s*(Prompt|Response)\s*:[ \t]*\r?\n([\s\S]*?)(?=\r?\n##\s*(?:Prompt|Response)\s*:|$)/gi, segs=[], m;
+    while((m=re.exec(text))){ segs.push({role:m[1].toLowerCase(), body:m[2]}); }
+    var msgs=[], pendingEn='';
+    for(var i=0;i<segs.length;i++){ if(segs[i].role!=='prompt') continue;
+      var respSeg=(segs[i+1]&&segs[i+1].role==='response')?segs[i+1]:null;
+      var ts=_parseTs(String(segs[i].body).split(/\r?\n/)[0]) || (respSeg?_parseTs(String(respSeg.body).split(/\r?\n/)[0]):null);
+      var prompt=_stripTs(segs[i].body).replace(/^(?:\s*(?:please\s+)?translate\b[^\n]*\r?\n?)+/i,'').trim();
+      var resp=respSeg?_stripTs(respSeg.body):'';
+      if(!prompt && !resp) continue;
+      var r=_ratio(prompt), secs=_sections(resp);
+      var jpSec=_pick(secs,/^japanese/,/reply|natural|romaji/), enSec=_pick(secs,/english/,/romaji/);
+      var respPlain=_cleanBody(String(resp).replace(/\*\*[^*]+\*\*[：:]?/g,''));
+      var msg;
+      if(r.ja>2 && r.ja>=r.la){
+        // Prompt is Sho's Japanese (pasted in to translate) → his message; English lives in the response
+        pendingEn='';  // Sho spoke → any held intent is stale
+        msg={who:'them', jp:_jpBlock(prompt)||prompt, en:_cutAdvisor(enSec||respPlain)};
+      } else {
+        // Julian's turn: the Japanese he actually SENT is what the AI produced (the response); English is his intent
+        var jp=_jpBlock(_cutAdvisor(jpSec||respPlain));
+        var promptEn = enSec ? _cutAdvisor(enSec) : (_isMeta(prompt) ? '' : _stripInstr(prompt));
+        if(_ratio(jp).ja<2){ if(promptEn) pendingEn=promptEn; continue; }  // English-only attempt (AI didn't translate) → hold its intent for the redo that follows
+        msg={who:'me', jp:jp, en: promptEn || pendingEn};  // a meta redo ("No, translate to Japanese") inherits the intent from the attempt just before it
+        pendingEn='';
+      }
+      if(!plain(msg.jp)) continue;
+      msg.ts=ts; msgs.push(msg);
+    }
+    // Collapse consecutive near-duplicate "me" messages (workbench re-tries of the same message) → keep the most complete
+    var out=[];
+    for(var j=0;j<msgs.length;j++){ var cur=msgs[j], prev=out[out.length-1];
+      if(prev && prev.who==='me' && cur.who==='me'){ var a=_norm(prev.jp), b=_norm(cur.jp);
+        if((a&&b&&(a.indexOf(b)>-1||b.indexOf(a)>-1)) || _dupEn(prev,cur)){ if(plain(cur.jp).length>=plain(prev.jp).length) out[out.length-1]=cur; continue; } }
+      out.push(cur);
+    }
+    // Ensure every "me" message has an English gloss so the English view never shows raw Japanese — a re-translation inherits the last English intent
+    var lastMeEn='';
+    for(var k=0;k<out.length;k++){ if(out[k].who!=='me') continue; if(out[k].en) lastMeEn=out[k].en; else if(lastMeEn) out[k].en=lastMeEn; }
+    return out;
+  }
+  function finishImport(results, failed, total, statusEl){
+    var added=0, now=Date.now(), tsi=0;
+    results.forEach(function(item){ var jp=rubyfy(item.jp||item.japanese||''); var en=String(item.en||item.english||''); if(!plain(jp)&&!en) return; var who='them',by=C().parts[0],sp=String(item.speaker||'').toLowerCase(); if(sp==='me'||sp==='julian'){who='me';by=null;} else { var match=C().parts.filter(function(id){return store.people[id].name.toLowerCase().indexOf(sp)>-1||sp.indexOf(store.people[id].name.toLowerCase())>-1;})[0]; if(match)by=match; } var m={who:who,jp:jp,en:en,ts:now+(tsi++),imported:true,source:impSrcVal}; if(who==='them')m.by=by; C().msgs.push(m); added++; });
+    save(); renderThread(true); renderSuggs(); if(added&&!C().title) aiTitle(true).then(renderChats);
+    if(failed){ statusEl.textContent='Imported '+added+' message'+(added===1?'':'s')+'. '+failed+' of '+total+' part'+(total===1?'':'s')+" couldn't be read — some messages may be missing. Re-paste those sections to fill the gaps."; }
+    else if(!added){ statusEl.textContent='No messages found in that text. Try pasting the actual conversation lines.'; }
+    else { statusEl.textContent=''; importSheet.classList.remove('on'); }
+  }
+  document.getElementById('importGo').onclick=function(){
+    var raw=document.getElementById('importText').value.trim(); if(!raw)return;
+    var statusEl=document.getElementById('importStatus');
+    // ChatGPT/Claude markdown export → parse directly (no AI, no gaps, keeps every message + real timestamps)
+    var parsed=parseChatGPTExport(raw);
+    if(parsed && parsed.length){
+      var by0=C().parts[0], base=Date.now();
+      var effSrc=(impSrcVal==='pasted'||impSrcVal==='other')?'chatgpt':impSrcVal;  // the ## Prompt/Response structure IS a ChatGPT/Claude export
+      parsed.forEach(function(msg,i){ if(msg.who==='them') msg.by=by0; if(!msg.ts) msg.ts=base+i; msg.jp=rubyfy(msg.jp); msg.imported=true; msg.source=effSrc; C().msgs.push(msg); });
+      save(); renderThread(true); renderSuggs(); if(!C().title) aiTitle(true).then(renderChats);
+      statusEl.textContent='Imported '+parsed.length+' messages from the export ✓';
+      setTimeout(function(){ importSheet.classList.remove('on'); }, 1100);
+      return;
+    }
+    if(!liveOn()){ statusEl.textContent='Importing needs a live AI (or paste a ChatGPT/Claude export) — add a key in ⚙.'; return; }
+    var names=partsOf(C()).map(function(x){return x.p.name;});
+    var chunks=chunkText(raw, 4000);
+    if(chunks.length>40){ if(!confirm("That's very long ("+chunks.length+' parts) and may take a few minutes. Import the first 40 parts?')) return; chunks=chunks.slice(0,40); }
+    var srcNote = impSrcVal==='photo' ? ' This text was OCR-extracted from a PHOTO/SCREENSHOT — silently fix obvious OCR errors (misread kana/kanji, split words).' : impSrcVal==='line' ? ' This is from LINE, possibly OCR from a screenshot — fix obvious OCR errors.' : '';
+    var results=[], failed=0;
+    var chain=chunks.reduce(function(pr, chunk, idx){ return pr.then(function(){
+      statusEl.innerHTML='reading… part '+(idx+1)+' / '+chunks.length+' <span class="spinner" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin:0 0 0 6px;"></span>';
+      var prompt='Julian was using an AI (ChatGPT/Claude) or a messenger to talk with '+names.join(', ')+'. Reconstruct the ACTUAL conversation from the log part below.'+srcNote+'\nRULES:\n- When Julian wrote something in English and the AI translated it to Japanese, that is ONE message from Julian ("me"): use the AI\'s Japanese as "jp" and Julian\'s English as "en". Do NOT split it into two messages.\n- Japanese written by '+names.join(' / ')+' (often pasted in) are their messages.\n- IGNORE the AI\'s explanations, options, notes and meta-text ("here is the translation", "let me know…", furigana breakdowns, headings).\n- Keep EVERY real message; do not skip any; preserve order.\n- Furigana readings in brackets after kanji are optional — prioritise capturing every message over adding readings.\nIf this part has no real messages, return [].\nReturn ONLY a JSON array: [{"speaker":"me|<name>","jp":"Japanese","en":"English"}].\n\nLOG PART '+(idx+1)+' of '+chunks.length+':\n'+chunk;
+      return callLLM(prompt, null, {maxTokens:8192, timeout:45000, json:true}).then(function(txt){ var arr=extractArray(txt); if(arr) results.push.apply(results, arr); else failed++; }).catch(function(){ failed++; });
+    }); }, Promise.resolve());
+    chain.then(function(){ finishImport(results, failed, chunks.length, statusEl); });
+  };
+
+  // settings
+  var setSheet=document.getElementById('setSheet'), setKey=document.getElementById('setKey'), setModel=document.getElementById('setModel');
+  function markProv(){ document.querySelectorAll('#provbtns button').forEach(function(x){x.classList.toggle('on',x.dataset.p===cfg.provider);}); }
+  function updateAiBadge(){ document.getElementById('setBtn').textContent=liveOn()?'⚙ AI: live':'⚙ AI: demo'; }
+  document.getElementById('setBtn').onclick=function(){ markProv(); setKey.value=cfg.key; setModel.value=cfg.model||defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); document.getElementById('setOaKey').value=cfg.oaKey; setSheet.classList.add('on'); };
+  document.querySelectorAll('#provbtns button').forEach(function(x){ x.onclick=function(){ cfg.provider=x.dataset.p; markProv(); setModel.value=defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); }; });
+  document.getElementById('setDone').onclick=function(){ cfg.key=setKey.value.trim(); cfg.model=setModel.value.trim(); cfg.oaKey=document.getElementById('setOaKey').value.trim(); localStorage.setItem('bt_provider',cfg.provider); localStorage.setItem('bt_key',cfg.key); localStorage.setItem('bt_model',cfg.model); localStorage.setItem('bt_oakey',cfg.oaKey); updateAiBadge(); setSheet.classList.remove('on'); };
+  document.getElementById('resetData').onclick=function(){ if(!confirm('Reset all conversations and people to seed data?'))return; ['bt_state_v5','bt_state_v4','bt_state_v3','bt_state_v2'].forEach(function(k){localStorage.removeItem(k);}); location.reload(); };
+
+  // ===== Backup: export/import everything (people, conversations, memories, drafts) as one .json =====
+  // API keys are deliberately NOT exported (a backup file shouldn't carry credentials). Audio history stays on-device (too big for JSON).
+  document.getElementById('exportBtn').onclick=function(){
+    var drafts={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('bt_draft')===0) drafts[k]=localStorage.getItem(k); }
+    var obj={app:'better-translator', schema:'bt_state_v5', exportedAt:new Date().toISOString(), store:store, drafts:drafts};
+    var d=new Date(), name='better-translator-backup-'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'.json';
+    var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(obj,null,1)],{type:'application/json'})); a.download=name; a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},4000);
+  };
+  document.getElementById('importDataBtn').onclick=function(){ document.getElementById('importDataFile').click(); };
+  document.getElementById('importDataFile').onchange=function(e){
+    var f=e.target.files&&e.target.files[0]; if(!f)return; e.target.value='';
+    var r=new FileReader();
+    r.onload=function(){
+      try{
+        var obj=JSON.parse(String(r.result));
+        if(!obj||obj.app!=='better-translator'||!obj.store||!obj.store.people||!obj.store.convos) throw new Error('not a Better Translator backup');
+        var nC=Object.keys(obj.store.convos).length, nP=Object.keys(obj.store.people).length;
+        if(!confirm('Restore backup from '+(obj.exportedAt||'?').slice(0,10)+' — '+nP+' people, '+nC+' conversations?\n\nThis REPLACES everything currently in the app.')) return;
+        localStorage.setItem(STORE_KEY, JSON.stringify(obj.store));
+        Object.keys(obj.drafts||{}).forEach(function(k){ if(k.indexOf('bt_draft')===0) localStorage.setItem(k,obj.drafts[k]); });
+        location.reload();
+      }catch(err){ alert('Could not restore: '+(err.message||err)); }
+    };
+    r.readAsText(f);
+  };
+
+  updateAiBadge(); renderChats();
+  // PWA: register the service worker (http/https only — file:// can't; localhost works). Makes it installable + offline-capable.
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
+})();
+</script>
+</body>
+</html>
