@@ -147,6 +147,7 @@
   <div class="view on" id="viewChats">
     <div class="hdr"><div style="flex:1"><div style="font-size:18px;font-weight:600;">Chats</div></div><button class="chip" id="setBtn" style="background:var(--wb); color:var(--muted);">⚙ AI: demo</button></div>
     <div style="padding:8px 12px 4px;"><div class="inrow" style="padding:4px 10px 4px 13px;"><span style="color:var(--muted);font-size:13px;">🔍</span><input id="searchInput" placeholder="Search all chats & messages…" style="flex:1;border:none;background:none;color:var(--ink);font:inherit;font-size:14px;outline:none;padding:5px 0;"><span id="searchClear" style="color:var(--muted);cursor:pointer;display:none;padding:0 2px;">✕</span></div></div>
+    <div id="demoBanner" style="display:none;margin:2px 12px 4px;padding:9px 13px;border-radius:12px;background:var(--amber-soft);color:var(--amber-ink);font-size:12px;line-height:1.5;cursor:pointer;">Demo mode — tap here to add a free Gemini API key and unlock compose, import &amp; dictation.</div>
     <div class="rows" id="searchResults" style="display:none;"></div>
     <div class="rows" id="rows"></div>
     <button class="fab" id="fab">＋</button>
@@ -160,7 +161,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v23 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v24 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -208,6 +209,7 @@
     <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:8px;">No key = demo mode. Dictation records real audio and transcribes with Whisper (if OpenAI key) or Gemini — every recording is saved first, so nothing is lost to a network error. Wispr Flow / system dictation also works: focus any text box and dictate.</div>
     <div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="chip" id="voiceBtn" style="background:var(--acc);color:#fff;">🗣 My voice</button><button class="chip" id="dictHistBtn" style="background:var(--wb);color:var(--muted);">🎙 Dictation history</button><button class="chip" id="exportBtn" style="background:var(--wb);color:var(--muted);">⬇ Export data</button><button class="chip" id="importDataBtn" style="background:var(--wb);color:var(--muted);">⬆ Restore backup</button></div>
     <input type="file" id="importDataFile" accept=".json,application/json" style="display:none;">
+    <div class="lbl" id="lastExport" style="text-align:center;margin-bottom:10px;"></div>
     <div style="display:flex;gap:10px;justify-content:center;"><button class="btn" id="resetData" style="flex:none;padding:11px 20px;">Reset chat data</button><button class="btn primary" id="setDone" style="flex:none;padding:11px 40px;">Save</button></div>
   </div></div>
 
@@ -447,6 +449,7 @@
     return {jp:'‹ demo mode — add a key in ⚙ to compose anything ›',en:esc(text),back:'"'+esc(text)+'"',flags:[{type:'warn',t:'Not a demo phrase — add an API key.'}],real:false,err:true};
   }
 
+  function toast(msg){ var t=document.createElement('div'); t.style.cssText='position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--acc);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:100;box-shadow:var(--shadow);white-space:nowrap;max-width:92%;overflow:hidden;text-overflow:ellipsis;'; t.textContent=msg; document.querySelector('.app').appendChild(t); setTimeout(function(){t.remove();},2600); }
   var viewChats=document.getElementById('viewChats'), viewConvo=document.getElementById('viewConvo');
   var thread=document.getElementById('thread'), input=document.getElementById('input'), send=document.getElementById('send');
   var scrim=document.getElementById('scrim'), reviewBody=document.getElementById('reviewBody');
@@ -573,7 +576,8 @@
     if(wrap.querySelector('.actbar')) return;
     var bar=document.createElement('div'); bar.className='actbar';
     var mk=function(label,fn,danger){ var x=document.createElement('button'); x.textContent=label; if(danger)x.className='danger'; x.onclick=function(e){e.stopPropagation();fn();}; return x; };
-    bar.appendChild(mk('copy',function(){ navigator.clipboard&&navigator.clipboard.writeText(plain(m.jp)); closeActbar(); }));
+    bar.appendChild(mk('copy',function(){ navigator.clipboard&&navigator.clipboard.writeText(plain(m.jp)); toast('✓ copied'); closeActbar(); }));
+    if(navigator.share) bar.appendChild(mk('share',function(){ navigator.share({text:plain(m.jp)}).catch(function(){}); closeActbar(); }));
     bar.appendChild(mk(m.pinned?'unpin':'📌 pin',function(){ m.pinned=!m.pinned; save(); renderThread(); }));
     bar.appendChild(mk(m.saved?'unsave':'⭐ save',function(){ m.saved=!m.saved; save(); renderThread(); }));
     var bub=wrap.querySelector('.bub');
@@ -689,7 +693,9 @@
   send.onclick=openReview;
   document.getElementById('reviewClose').onclick=function(){ composeSeq++; scrim.classList.remove('on'); };
   document.getElementById('redo').onclick=function(){ if(pending) runCompose(); };
-  document.getElementById('sendIt').onclick=function(){ if(!pending||!pending.res||pending.res.err)return; var r=pending.res; var now=Date.now(); if(activeSpeaker==='me') C().msgs.push({who:'me',jp:r.jp,en:pending.text,ts:now}); else C().msgs.push({who:'them',by:activeSpeaker,jp:r.jp,en:r.en||pending.text,ts:now}); save(); renderThread(true); demos.innerHTML=''; scrim.classList.remove('on'); input.value=''; autoresize(); send.disabled=true; localStorage.removeItem('bt_draft_'+cur); };  // no suggestion refetch after your own send — suggestions matter when it's your turn to REPLY; saves an API call per message
+  document.getElementById('sendIt').onclick=function(){ if(!pending||!pending.res||pending.res.err)return; var r=pending.res; var now=Date.now(); if(activeSpeaker==='me') C().msgs.push({who:'me',jp:r.jp,en:pending.text,ts:now}); else C().msgs.push({who:'them',by:activeSpeaker,jp:r.jp,en:r.en||pending.text,ts:now}); save(); renderThread(true); demos.innerHTML='';
+    // the daily loop ends in LINE — hand the Japanese straight to the clipboard
+    if(activeSpeaker==='me' && navigator.clipboard){ navigator.clipboard.writeText(plain(r.jp)).then(function(){ toast(uiLang()==='ja'?'✓ 送信・コピーしました':'✓ Sent — Japanese copied, paste into LINE'); }).catch(function(){}); } scrim.classList.remove('on'); input.value=''; autoresize(); send.disabled=true; localStorage.removeItem('bt_draft_'+cur); };  // no suggestion refetch after your own send — suggestions matter when it's your turn to REPLY; saves an API call per message
 
   // edit
   var editScrim=document.getElementById('editScrim'), editBody=document.getElementById('editBody'), editState=null;
@@ -725,7 +731,7 @@
   var WBQ={recap:"Recap this WHOLE conversation: what it has been about, any decisions made, and what is still open.",
            catch:"Catch me up on just the RECENT part: what the last several messages were about, and whether anything is waiting on a reply from me. Do not summarize the whole history.",
            mean:"What does their last message mean — any nuance?"};
-  function wbAsk(shown,full,canned){ wbPush('you',esc(shown)); if(!liveOn()){ setTimeout(function(){wbPush('ai',canned);},220); return; } var node=wbPush('ai','<span class="lbl">thinking…</span>'); var a=wbArr(); a[a.length-1].pending=true; var p='You are the private assistant helping '+(activeSpeaker==='me'?'Julian, who is '+audienceDesc():spk().name+' inside their conversation with Julian.')+'\n'+memoryBlock()+'CONVERSATION:\n'+histText()+'\nQuestion: "'+full+'"\nAnswer briefly in plain conversational '+langWord()+' (2–4 sentences). NEVER answer in JSON or with labels/keys — just talk. If you quote Japanese, add readings in square brackets after kanji.'; callLLM(p,function(model){ node.innerHTML='<div class="wb-role">Assistant</div><span class="lbl">trying '+esc(model)+'…</span>'; }).then(function(tx){ wbFinal(node,rubyfy(deJson(tx))); }).catch(function(e){ wbFinal(node,'API error: '+esc(e.message||String(e))); }); }
+  function wbAsk(shown,full,canned){ wbPush('you',esc(shown)); if(!liveOn()){ setTimeout(function(){wbPush('ai',canned);},220); return; } var node=wbPush('ai','<span class="lbl">thinking…</span>'); var a=wbArr(); a[a.length-1].pending=true; var p='You are the private assistant helping '+(activeSpeaker==='me'?'Julian, who is '+audienceDesc():spk().name+' inside their conversation with Julian.')+'\n'+memoryBlock()+'FULL CONVERSATION:\n'+histFull()+'\nQuestion: "'+full+'"\nAnswer briefly in plain conversational '+langWord()+' (2–4 sentences). NEVER answer in JSON or with labels/keys — just talk. If you quote Japanese, add readings in square brackets after kanji.'; callLLM(p,function(model){ node.innerHTML='<div class="wb-role">Assistant</div><span class="lbl">trying '+esc(model)+'…</span>'; },{timeout:30000}).then(function(tx){ wbFinal(node,rubyfy(deJson(tx))); }).catch(function(e){ wbFinal(node,'API error: '+esc(e.message||String(e))); }); }  // histFull, not last-12 — "what did he say about the will?" must reach back
   document.getElementById('wbSend').onclick=function(){ var v=document.getElementById('wbInput').value.trim(); if(!v)return; document.getElementById('wbInput').value=''; wbAsk(v,v,"(demo) add a key and I'll answer from the whole conversation."); };
   document.getElementById('wbInput').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('wbSend').click(); });
 
@@ -1235,8 +1241,9 @@
   // settings
   var setSheet=document.getElementById('setSheet'), setKey=document.getElementById('setKey'), setModel=document.getElementById('setModel');
   function markProv(){ document.querySelectorAll('#provbtns button').forEach(function(x){x.classList.toggle('on',x.dataset.p===cfg.provider);}); }
-  function updateAiBadge(){ document.getElementById('setBtn').textContent=liveOn()?'⚙ AI: live':'⚙ AI: demo'; }
-  document.getElementById('setBtn').onclick=function(){ markProv(); markFuri(); setKey.value=cfg.key; setModel.value=cfg.model||defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); document.getElementById('setOaKey').value=cfg.oaKey; setSheet.classList.add('on'); };
+  function updateAiBadge(){ document.getElementById('setBtn').textContent=liveOn()?'⚙ AI: live':'⚙ AI: demo'; document.getElementById('demoBanner').style.display=liveOn()?'none':''; }
+  document.getElementById('demoBanner').onclick=function(){ document.getElementById('setBtn').click(); };
+  document.getElementById('setBtn').onclick=function(){ markProv(); markFuri(); markLastExport(); setKey.value=cfg.key; setModel.value=cfg.model||defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); document.getElementById('setOaKey').value=cfg.oaKey; setSheet.classList.add('on'); };
   document.querySelectorAll('#provbtns button').forEach(function(x){ x.onclick=function(){ cfg.provider=x.dataset.p; markProv(); setModel.value=defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); }; });
   document.getElementById('setDone').onclick=function(){ cfg.key=setKey.value.trim(); cfg.model=setModel.value.trim(); cfg.oaKey=document.getElementById('setOaKey').value.trim(); localStorage.setItem('bt_provider',cfg.provider); localStorage.setItem('bt_key',cfg.key); localStorage.setItem('bt_model',cfg.model); localStorage.setItem('bt_oakey',cfg.oaKey); updateAiBadge(); setSheet.classList.remove('on'); };
   document.getElementById('resetData').onclick=function(){ if(!confirm('Reset all conversations and people to seed data?'))return; var kill=['bt_state_v5','bt_state_v4','bt_state_v3','bt_state_v2']; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('bt_draft')===0) kill.push(k); } kill.forEach(function(k){localStorage.removeItem(k);}); location.reload(); };
@@ -1266,7 +1273,9 @@
     var obj={app:'better-translator', schema:'bt_state_v5', exportedAt:new Date().toISOString(), store:store, drafts:drafts};
     var d=new Date(), name='better-translator-backup-'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'.json';
     var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(obj,null,1)],{type:'application/json'})); a.download=name; a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},4000);
+    localStorage.setItem('bt_last_export',String(Date.now())); markLastExport();
   };
+  function markLastExport(){ var ts=+localStorage.getItem('bt_last_export')||0; var el=document.getElementById('lastExport'); if(!ts){ el.textContent='No backup yet — Export protects your chats & memories.'; return; } var days=Math.floor((Date.now()-ts)/86400000); el.textContent='Last backup: '+fmtDay(ts)+(days>7?' — over a week old, consider exporting':''); }
   document.getElementById('importDataBtn').onclick=function(){ document.getElementById('importDataFile').click(); };
   document.getElementById('importDataFile').onchange=function(e){
     var f=e.target.files&&e.target.files[0]; if(!f)return; e.target.value='';
@@ -1286,6 +1295,8 @@
   };
 
   updateAiBadge(); renderChats();
+  // ask the browser to protect this origin's storage from eviction (chats + memories live here)
+  if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){});
   // PWA: register the service worker (http/https only — file:// can't; localhost works). Makes it installable + offline-capable.
   if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
     navigator.serviceWorker.register('sw.js').then(function(reg){
