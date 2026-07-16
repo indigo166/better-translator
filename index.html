@@ -153,7 +153,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v19 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v20 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -234,8 +234,9 @@
   <div class="regsheet" id="importSheet"><div class="regcard">
     <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Import a conversation</div>
     <div class="lbl">Choose your exported file — <b>ChatGPT/Claude .md</b> and <b>LINE .txt</b> (トーク履歴を送信) import perfectly with real dates — or paste text below.</div>
-    <div style="margin:9px 0 4px;"><button class="chip" id="importFileBtn" style="background:var(--acc);color:#fff;">📄 Choose a .md / .txt file</button><span id="importFileName" class="lbl" style="margin-left:8px;"></span></div>
+    <div style="margin:9px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="chip" id="importFileBtn" style="background:var(--acc);color:#fff;">📄 .md / .txt file</button><button class="chip" id="importPhotoBtn" style="background:var(--acc);color:#fff;">📷 Photos / screenshots</button><span id="importFileName" class="lbl"></span></div>
     <input type="file" id="importFile" accept=".md,.markdown,.txt,text/plain,text/markdown" style="display:none;">
+    <input type="file" id="importPhoto" accept="image/*" multiple style="display:none;">
     <div class="setrow" style="margin-top:6px;"><textarea id="importText" rows="6" placeholder="…or paste the conversation here"></textarea></div>
     <div class="lbl">Where's it from? (adds a label; photo/LINE also fixes OCR errors)</div>
     <div class="segbtns" id="impSrc" style="margin-top:2px;"><button data-s="pasted" class="on">pasted</button><button data-s="photo">📷 photo</button><button data-s="line">LINE</button><button data-s="other">other</button></div>
@@ -824,6 +825,38 @@
     }
     return Promise.reject(new Error('Dictation needs a Gemini key or an OpenAI key (⚙).'));
   }
+  // ===== Photo import: downscale client-side, extract chat messages with vision (Gemini or Claude — same keys) =====
+  function resizeImage(blob, maxDim){
+    return createImageBitmap(blob).then(function(bmp){
+      var s=Math.min(1,(maxDim||1600)/Math.max(bmp.width,bmp.height));
+      if(s>=1) return blob;
+      var c=document.createElement('canvas'); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
+      c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+      return new Promise(function(res){ c.toBlob(function(b){ res(b||blob); },'image/jpeg',0.85); });
+    }).catch(function(){ return blob; });
+  }
+  function visionExtract(blob, names){
+    var prompt='This image is a screenshot/photo of a chat (probably LINE) between Julian and '+names.join(', ')+'.\nExtract the ACTUAL messages in top-to-bottom order. In LINE, right-aligned (usually green) bubbles are the account owner — assume that is Julian ("me"); left-aligned bubbles are the other person.\nSilently fix obvious OCR errors. Ignore UI chrome, headers, read-receipts, input bar. Stickers/photos become "[sticker]"/"[photo]".\nFor each message: speaker ("me" or the other person\'s name), "jp" (the Japanese text if the message is Japanese), "en" (the English text if the message is English) — fill only what is actually visible, leave the other "".\nReturn ONLY JSON: {"messages":[{"speaker":"me","jp":"","en":""}]}';
+    return resizeImage(blob,1600).then(blobB64).then(function(b64){
+      var mime='image/jpeg';
+      if(cfg.provider==='gemini' && cfg.key){
+        var body={contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],generationConfig:{maxOutputTokens:8192,response_mime_type:'application/json'}};
+        function tryModels(models,lastErr){ if(!models.length) return Promise.reject(lastErr||new Error('no Gemini model read the photo'));
+          return fetchT('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(models[0])+':generateContent?key='+encodeURIComponent(cfg.key),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},60000)
+            .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('HTTP '+r.status));}); return r.json(); })
+            .then(function(d){ if(!d.candidates||!d.candidates[0].content||!d.candidates[0].content.parts) throw new Error('empty response'); return d.candidates[0].content.parts[0].text; })
+            .catch(function(e){ if(/api key|permission|unauthoriz|billing/i.test(e.message||'')) throw e; return tryModels(models.slice(1),e); });
+        }
+        return tryModels(geminiModelChain());
+      }
+      if(cfg.provider==='claude' && cfg.key){
+        return fetchT('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':cfg.key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:cfg.model||defModel('claude'),max_tokens:8192,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mime,data:b64}},{type:'text',text:prompt}]}]})},60000)
+          .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('HTTP '+r.status));}); return r.json(); })
+          .then(function(d){ return d.content[0].text; });
+      }
+      return Promise.reject(new Error('Photo import needs an AI key (⚙).'));
+    }).then(function(tx){ var j=parseModelJSON(tx); return Array.isArray(j.messages)?j.messages:(Array.isArray(j)?j:[]); });
+  }
   var rec={live:false, mr:null, chunks:[], busy:false};
   function btnRecState(btn,state){ if(!btn)return; if(state==='rec'){ btn.textContent='■'; btn.style.background='#B4413E'; btn.style.color='#fff'; } else if(state==='busy'){ btn.textContent='…'; btn.style.background=''; btn.style.color=''; } else { btn.textContent='🎤'; btn.style.background='var(--card)'; btn.style.color='var(--muted)'; } }
   function recordToggle(into,btn){
@@ -938,10 +971,18 @@
 
   // import
   var importSheet=document.getElementById('importSheet');
-  function openImport(){ document.getElementById('importText').value=''; document.getElementById('importStatus').textContent=''; document.getElementById('importFileName').textContent=''; impSrcVal='pasted'; document.querySelectorAll('#impSrc button').forEach(function(y){y.classList.toggle('on',y.dataset.s==='pasted');}); importSheet.classList.add('on'); }
+  var pendingPhotos=[];
+  function setImpSrc(s){ impSrcVal=s; document.querySelectorAll('#impSrc button').forEach(function(y){y.classList.toggle('on',y.dataset.s===s);}); }
+  function photoLabel(){ document.getElementById('importFileName').textContent=pendingPhotos.length?('✓ '+pendingPhotos.length+' photo'+(pendingPhotos.length>1?'s':'')+' — tap Import'):''; }
+  function addPhotos(files){ for(var i=0;i<files.length;i++){ if(/^image\//.test(files[i].type)) pendingPhotos.push(files[i]); } if(pendingPhotos.length){ setImpSrc('photo'); photoLabel(); document.getElementById('importStatus').textContent=''; } }
+  function openImport(){ document.getElementById('importText').value=''; document.getElementById('importStatus').textContent=''; document.getElementById('importFileName').textContent=''; pendingPhotos=[]; setImpSrc('pasted'); importSheet.classList.add('on'); }
   document.getElementById('menuImport').onclick=function(){ menuSheet.classList.remove('on'); openImport(); };
   document.getElementById('importCancel').onclick=function(){ importSheet.classList.remove('on'); };
   document.getElementById('importFileBtn').onclick=function(){ document.getElementById('importFile').click(); };
+  document.getElementById('importPhotoBtn').onclick=function(){ document.getElementById('importPhoto').click(); };
+  document.getElementById('importPhoto').onchange=function(e){ addPhotos(e.target.files||[]); e.target.value=''; };
+  // ⌘V a screenshot straight into the import sheet
+  document.getElementById('importText').addEventListener('paste',function(e){ var fs=(e.clipboardData&&e.clipboardData.files)||[]; if(fs.length){ e.preventDefault(); addPhotos(fs); } });
   document.getElementById('importFile').onchange=function(e){ var f=e.target.files&&e.target.files[0]; if(!f)return; var nm=(f.name||'').toLowerCase(); if(/\.(md|markdown|txt)$/.test(nm)&&(nm.indexOf('line')>-1)) { impSrcVal='line'; document.querySelectorAll('#impSrc button').forEach(function(y){y.classList.toggle('on',y.dataset.s==='line');}); } var r=new FileReader(); r.onload=function(){ var txt=String(r.result||''); document.getElementById('importText').value=txt; document.getElementById('importFileName').textContent='✓ '+f.name+' ('+Math.round(txt.length/1000)+'k chars) — tap Import'; document.getElementById('importStatus').textContent=''; }; r.onerror=function(){ document.getElementById('importFileName').textContent='could not read that file'; }; r.readAsText(f); e.target.value=''; };
   function chunkText(text, budget){
     var blocks=text.split(/\n\s*\n/), chunks=[], cur='';
@@ -1066,13 +1107,26 @@
     var added=0, now=Date.now(), tsi=0;
     results.forEach(function(item){ var jp=rubyfy(item.jp||item.japanese||''); var en=String(item.en||item.english||''); if(!plain(jp)&&!en) return; var who='them',by=C().parts[0],sp=String(item.speaker||'').toLowerCase(); if(sp==='me'||sp==='julian'){who='me';by=null;} else { var match=C().parts.filter(function(id){return store.people[id].name.toLowerCase().indexOf(sp)>-1||sp.indexOf(store.people[id].name.toLowerCase())>-1;})[0]; if(match)by=match; } var m={who:who,jp:jp,en:en,ts:now+(tsi++),imported:true,source:impSrcVal}; if(who==='them')m.by=by; C().msgs.push(m); added++; });
     save(); renderThread(true); renderSuggs(); if(added&&!C().title) aiTitle(true).then(renderChats);
-    if(failed){ statusEl.textContent='Imported '+added+' message'+(added===1?'':'s')+'. '+failed+' of '+total+' part'+(total===1?'':'s')+" couldn't be read — some messages may be missing. Re-paste those sections to fill the gaps."; }
-    else if(!added){ statusEl.textContent='No messages found in that text. Try pasting the actual conversation lines.'; }
-    else { statusEl.textContent=''; importSheet.classList.remove('on'); }
+    if(!added){ statusEl.textContent='No messages found. Try again, or paste the conversation as text.'; return; }
+    var note=failed?('Imported '+added+' · '+failed+' of '+total+" couldn't be read — re-import those to fill gaps. "):'Imported '+added+' ✓ ';
+    statusEl.textContent=note;
+    fillTranslations(statusEl, function(){ if(!failed) setTimeout(function(){ importSheet.classList.remove('on'); },1400); });
   }
   document.getElementById('importGo').onclick=function(){
-    var raw=document.getElementById('importText').value.trim(); if(!raw)return;
     var statusEl=document.getElementById('importStatus');
+    // photos first — extract each with vision, then the shared attribution + translation-fill path
+    if(pendingPhotos.length){
+      if(!liveOn()){ statusEl.textContent='Photo import needs an AI key — add one in ⚙.'; return; }
+      var photos=pendingPhotos.slice(); pendingPhotos=[];
+      var names=partsOf(C()).map(function(x){return x.p.name;});
+      var results=[], failed=0;
+      photos.reduce(function(pr, ph, ix){ return pr.then(function(){
+        statusEl.innerHTML='reading photo '+(ix+1)+' / '+photos.length+' <span class="spinner" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin:0 0 0 6px;"></span>';
+        return visionExtract(ph, names).then(function(arr){ results.push.apply(results,arr); }).catch(function(){ failed++; });
+      }); }, Promise.resolve()).then(function(){ setImpSrc('photo'); finishImport(results, failed, photos.length, statusEl); });
+      return;
+    }
+    var raw=document.getElementById('importText').value.trim(); if(!raw)return;
     // ChatGPT/Claude markdown export → parse directly (no AI, no gaps, keeps every message + real timestamps)
     var parsed=parseChatGPTExport(raw);
     if(parsed && parsed.length){
