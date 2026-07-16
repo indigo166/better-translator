@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0F7A6B">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -29,7 +29,7 @@
   html,body{margin:0; height:100%;}
   body{ background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif; display:flex; justify-content:center; align-items:stretch; }
   ruby rt{font-size:.62em; color:var(--muted); font-weight:400;}
-  .app{ width:100%; max-width:430px; height:100dvh; background:var(--paper); display:flex; flex-direction:column; position:relative; overflow:hidden; border-left:0.5px solid var(--line); border-right:0.5px solid var(--line); }
+  .app{ width:100%; max-width:430px; height:100dvh; background:var(--paper); display:flex; flex-direction:column; position:relative; overflow:hidden; border-left:0.5px solid var(--line); border-right:0.5px solid var(--line); padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); }
   .view{display:none; flex-direction:column; flex:1; min-height:0;}
   .view.on{display:flex;}
   .hdr{display:flex; align-items:center; gap:11px; padding:14px 15px; border-bottom:0.5px solid var(--line);}
@@ -146,6 +146,8 @@
 <div class="app">
   <div class="view on" id="viewChats">
     <div class="hdr"><div style="flex:1"><div style="font-size:18px;font-weight:600;">Chats</div></div><button class="chip" id="setBtn" style="background:var(--wb); color:var(--muted);">⚙ AI: demo</button></div>
+    <div style="padding:8px 12px 4px;"><div class="inrow" style="padding:4px 10px 4px 13px;"><span style="color:var(--muted);font-size:13px;">🔍</span><input id="searchInput" placeholder="Search all chats & messages…" style="flex:1;border:none;background:none;color:var(--ink);font:inherit;font-size:14px;outline:none;padding:5px 0;"><span id="searchClear" style="color:var(--muted);cursor:pointer;display:none;padding:0 2px;">✕</span></div></div>
+    <div class="rows" id="searchResults" style="display:none;"></div>
     <div class="rows" id="rows"></div>
     <button class="fab" id="fab">＋</button>
     <div id="selBar" style="display:none; gap:8px; padding:9px 12px; border-top:0.5px solid var(--line); align-items:center;">
@@ -158,7 +160,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v22 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v23 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -492,9 +494,41 @@
   };
   function showView(w){ viewChats.classList.toggle('on',w==='chats'); viewConvo.classList.toggle('on',w==='convo'); }
 
+  // global search — names, titles, and both languages of every message; tap a hit to jump to it
+  var searchInput=document.getElementById('searchInput');
+  function clearSearch(){ searchInput.value=''; doSearch(); }
+  function doSearch(){
+    var q=searchInput.value.trim().toLowerCase();
+    var rows=document.getElementById('rows'), res=document.getElementById('searchResults');
+    document.getElementById('searchClear').style.display=q?'':'none';
+    if(!q){ res.style.display='none'; rows.style.display=''; return; }
+    rows.style.display='none'; res.style.display=''; res.innerHTML='';
+    Object.keys(store.convos).forEach(function(k){ var c=store.convos[k];
+      var nameHit=(convoName(c)+' '+(c.title||'')).toLowerCase().indexOf(q)>-1;
+      var msgHits=[];
+      c.msgs.forEach(function(m,i){ if(m.sys) return; if((plain(m.jp||'')+' '+(m.en||'')).toLowerCase().indexOf(q)>-1) msgHits.push(i); });
+      if(!nameHit && !msgHits.length) return;
+      var h=document.createElement('div'); h.className='archhdr'; h.style.cursor='pointer'; h.textContent=convoName(c)+(c.title?' · '+c.title:'')+(c.archived?' (archived)':'')+(msgHits.length?' — '+msgHits.length+' match'+(msgHits.length>1?'es':''):'');
+      h.onclick=function(){ clearSearch(); openConvo(k); }; res.appendChild(h);
+      msgHits.slice(-8).forEach(function(i){ var m=c.msgs[i];
+        var d=document.createElement('div'); d.className='row';
+        d.innerHTML='<div style="flex:1;min-width:0;"><div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div><div class="prev"></div></div><div class="tm" style="font-size:10px;color:var(--muted);flex-shrink:0;"></div>';
+        d.children[0].children[0].textContent=(m.who==='me'?'You':senderName(m))+': '+String(m.en||plain(m.jp)).slice(0,64);
+        d.children[0].children[1].textContent=plain(m.jp||'').slice(0,64);
+        d.children[1].textContent=fmtWhen(m.ts);
+        d.onclick=function(){ clearSearch(); openConvo(k); setTimeout(function(){ scrollToMsg(i); },120); };
+        res.appendChild(d);
+      });
+      if(msgHits.length>8){ var more=document.createElement('div'); more.className='archhdr'; more.style.paddingTop='2px'; more.textContent='… '+(msgHits.length-8)+' earlier matches in this chat'; res.appendChild(more); }
+    });
+    if(!res.children.length){ var none=document.createElement('div'); none.className='archhdr'; none.textContent='no matches'; res.appendChild(none); }
+  }
+  searchInput.addEventListener('input',doSearch);
+  document.getElementById('searchClear').onclick=clearSearch;
+
   // thread
   var openActbar=null;
-  function scrollToMsg(idx){ var el=thread.querySelector('.msgwrap[data-idx="'+idx+'"]'); if(!el) return; el.scrollIntoView({block:'center'}); var b=el.querySelector('.bub'); if(b){ b.style.transition='none'; b.style.outline='2px solid var(--acc)'; setTimeout(function(){ b.style.transition='outline .8s'; b.style.outline='2px solid transparent'; },600); } }
+  function scrollToMsg(idx){ var el=thread.querySelector('.msgwrap[data-idx="'+idx+'"]'); if(!el && !threadShowAll){ threadShowAll=true; renderThread(); el=thread.querySelector('.msgwrap[data-idx="'+idx+'"]'); } if(!el) return; el.scrollIntoView({block:'center'}); var b=el.querySelector('.bub'); if(b){ b.style.transition='none'; b.style.outline='2px solid var(--acc)'; setTimeout(function(){ b.style.transition='outline .8s'; b.style.outline='2px solid transparent'; },600); } }
   // What a bubble shows, per language — tolerant of bad imported data: never show English-only "jp" in the Japanese view, never a blank bubble
   function bubHtml(m,dispLang){
     var hasJa=/[぀-ヿ㐀-鿿]/.test(plain(m.jp||''));
@@ -507,13 +541,18 @@
     bar.style.display=pinned.length?'flex':'none';
     pinned.forEach(function(i){ var m=C().msgs[i]; var chipEl=document.createElement('button'); chipEl.className='demo'; chipEl.style.color='var(--acc-ink)'; chipEl.style.flexShrink='0'; chipEl.textContent='📌 '+plain(m.en||m.jp).slice(0,26)+'…'; chipEl.onclick=function(){ scrollToMsg(i); }; bar.appendChild(chipEl); });
   }
+  // long threads render a window (phone perf); pins/topics/search jumps auto-expand
+  var THREAD_WINDOW=80, threadShowAll=false;
   function renderThread(toBottom){
     var prevScroll=thread.scrollTop;
     thread.innerHTML=''; openActbar=null;
     renderPinsBar();
+    var winStart = threadShowAll ? 0 : Math.max(0, C().msgs.length-THREAD_WINDOW);
+    if(winStart>0){ var moreBtn=document.createElement('button'); moreBtn.className='demo'; moreBtn.style.cssText='align-self:center;color:var(--acc-ink);flex-shrink:0;'; moreBtn.textContent='· show '+winStart+' earlier messages ·'; moreBtn.onclick=function(){ var anchor=winStart; threadShowAll=true; renderThread(); scrollToMsg(anchor); }; thread.appendChild(moreBtn); }
     if(!C().msgs.length){ var es=document.createElement('div'); es.style.cssText='margin:auto;text-align:center;color:var(--muted);font-size:13px;line-height:1.8;padding:30px 26px;'; es.innerHTML = uiLang()==='ja' ? '下のボックスに話すか、入力してください。<br>ジュリアンが読める形に翻訳されます。' : 'Say it in English below — it becomes natural Japanese in the right register,<br>and you review it before it sends.<br><span style="font-size:12px;">🎤 to dictate · 🎙 in-person mode is in ⋮</span>'; thread.appendChild(es); }
     var lastTs=null;
     C().msgs.forEach(function(m, idx){
+      if(idx<winStart) return;
       if(m.ts && (!lastTs || !sameDay(lastTs,m.ts))){ var sep=document.createElement('div'); sep.className='seg'; sep.textContent=fmtDay(m.ts); thread.appendChild(sep); }
       if(m.ts) lastTs=m.ts;
       if(m.sys){ var sm=document.createElement('div'); sm.className='seg'; sm.style.maxWidth='90%'; sm.style.textAlign='center'; sm.textContent=plain(m.en||m.jp||''); thread.appendChild(sm); return; }
@@ -586,7 +625,7 @@
     }; acts.appendChild(sv);
   }
   function openConvo(k){
-    cur=k; var c=C(); register=c.reg;
+    cur=k; var c=C(); register=c.reg; threadShowAll=false;
     // Restore who had the phone — reopening a chat must NOT silently flip the language back to English
     activeSpeaker=(c.speaker && (c.speaker==='me' || c.parts.indexOf(c.speaker)>-1)) ? c.speaker : 'me';
     c.msgs.forEach(function(m){delete m._showLang;});
@@ -650,7 +689,7 @@
   send.onclick=openReview;
   document.getElementById('reviewClose').onclick=function(){ composeSeq++; scrim.classList.remove('on'); };
   document.getElementById('redo').onclick=function(){ if(pending) runCompose(); };
-  document.getElementById('sendIt').onclick=function(){ if(!pending||!pending.res||pending.res.err)return; var r=pending.res; var now=Date.now(); if(activeSpeaker==='me') C().msgs.push({who:'me',jp:r.jp,en:pending.text,ts:now}); else C().msgs.push({who:'them',by:activeSpeaker,jp:r.jp,en:r.en||pending.text,ts:now}); save(); renderThread(true); renderSuggs(); scrim.classList.remove('on'); input.value=''; autoresize(); send.disabled=true; localStorage.removeItem('bt_draft_'+cur); };
+  document.getElementById('sendIt').onclick=function(){ if(!pending||!pending.res||pending.res.err)return; var r=pending.res; var now=Date.now(); if(activeSpeaker==='me') C().msgs.push({who:'me',jp:r.jp,en:pending.text,ts:now}); else C().msgs.push({who:'them',by:activeSpeaker,jp:r.jp,en:r.en||pending.text,ts:now}); save(); renderThread(true); demos.innerHTML=''; scrim.classList.remove('on'); input.value=''; autoresize(); send.disabled=true; localStorage.removeItem('bt_draft_'+cur); };  // no suggestion refetch after your own send — suggestions matter when it's your turn to REPLY; saves an API call per message
 
   // edit
   var editScrim=document.getElementById('editScrim'), editBody=document.getElementById('editBody'), editState=null;
@@ -1248,7 +1287,18 @@
 
   updateAiBadge(); renderChats();
   // PWA: register the service worker (http/https only — file:// can't; localhost works). Makes it installable + offline-capable.
-  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      reg.addEventListener('updatefound',function(){ var nw=reg.installing; if(!nw) return; nw.addEventListener('statechange',function(){
+        if(nw.state==='activated' && navigator.serviceWorker.controller){
+          var tst=document.createElement('div'); tst.style.cssText='position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--acc);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:100;cursor:pointer;box-shadow:var(--shadow);white-space:nowrap;';
+          tst.textContent='↻ Updated — tap to load the new version';
+          tst.onclick=function(){ location.reload(); };
+          document.querySelector('.app').appendChild(tst); setTimeout(function(){ tst.remove(); },10000);
+        }
+      }); });
+    }).catch(function(){});
+  }
 })();
 </script>
 </body>
