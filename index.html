@@ -153,7 +153,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v17 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v18 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -191,14 +191,8 @@
     <div style="text-align:center;margin-top:12px;"><button class="btn primary" id="regDone" style="flex:none;padding:11px 40px;">Done</button></div>
   </div></div>
 
-  <div class="regsheet" id="spkSheet"><div class="regcard">
-    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Who's talking?</div>
-    <div class="lbl">Pass the phone — pick who's speaking. If they read Japanese, the app + the whole thread switch to Japanese.</div>
-    <div id="spkList"></div>
-  </div></div>
-
   <div class="regsheet" id="setSheet"><div class="regcard">
-    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">AI engine <span class="lbl" style="font-weight:400;">· proto v7</span></div>
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px;">AI engine</div>
     <div class="lbl">Provider</div><div class="segbtns" id="provbtns"><button data-p="gemini">Gemini (free tier)</button><button data-p="claude">Claude</button></div>
     <div class="setrow" style="margin-top:10px;"><div class="lbl">API key — stays on this device only</div><input id="setKey" type="password" placeholder="paste your key…" autocomplete="off"></div>
     <div class="setrow"><div class="lbl">Model</div><input id="setModel" autocomplete="off"></div>
@@ -352,7 +346,7 @@
   function loadStore(){ try{ var raw=localStorage.getItem(STORE_KEY); if(raw){ var s=JSON.parse(raw); if(s&&s.people&&s.convos) return s; } var m=migrateOld(); if(m) return m; return seedStore(); }catch(e){ return seedStore(); } }
   var store=loadStore();
   // Built-in "guest" — for one-off strangers (train station, staff). Never listed, never gets a .md or memory.
-  if(!store.people.guest) store.people.guest={name:'Someone', reg:'polite', lang:'ja', color:'#6E7B74', icon:'👤', desc:'a person Julian is talking to one-off (a stranger, staff, someone at the station) — polite, neutral, no shared history', memory:'', guest:true};
+  if(!store.people.guest) store.people.guest={name:'Someone', reg:'polite', lang:'ja', color:'#6E7B74', icon:'👤', desc:'someone I am talking to one-off (a stranger, staff, someone at the station) — polite, neutral, no shared history', memory:'', guest:true};
   function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){} }
   save();
 
@@ -1052,7 +1046,7 @@
   document.getElementById('setBtn').onclick=function(){ markProv(); setKey.value=cfg.key; setModel.value=cfg.model||defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); document.getElementById('setOaKey').value=cfg.oaKey; setSheet.classList.add('on'); };
   document.querySelectorAll('#provbtns button').forEach(function(x){ x.onclick=function(){ cfg.provider=x.dataset.p; markProv(); setModel.value=defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); }; });
   document.getElementById('setDone').onclick=function(){ cfg.key=setKey.value.trim(); cfg.model=setModel.value.trim(); cfg.oaKey=document.getElementById('setOaKey').value.trim(); localStorage.setItem('bt_provider',cfg.provider); localStorage.setItem('bt_key',cfg.key); localStorage.setItem('bt_model',cfg.model); localStorage.setItem('bt_oakey',cfg.oaKey); updateAiBadge(); setSheet.classList.remove('on'); };
-  document.getElementById('resetData').onclick=function(){ if(!confirm('Reset all conversations and people to seed data?'))return; ['bt_state_v5','bt_state_v4','bt_state_v3','bt_state_v2'].forEach(function(k){localStorage.removeItem(k);}); location.reload(); };
+  document.getElementById('resetData').onclick=function(){ if(!confirm('Reset all conversations and people to seed data?'))return; var kill=['bt_state_v5','bt_state_v4','bt_state_v3','bt_state_v2']; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('bt_draft')===0) kill.push(k); } kill.forEach(function(k){localStorage.removeItem(k);}); location.reload(); };
 
   // ===== Backup: export/import everything (people, conversations, memories, drafts) as one .json =====
   // API keys are deliberately NOT exported (a backup file shouldn't carry credentials). Audio history stays on-device (too big for JSON).
