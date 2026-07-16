@@ -10,7 +10,7 @@
 <title>Better Translator — prototype</title>
 <style>
   :root{
-    --paper:#FAF8F3; --ink:#23201B; --muted:#8A8378; --card:#FFFFFF; --line:#EBE6DC;
+    --paper:#FAF8F3; --ink:#23201B; --muted:#756E60; --card:#FFFFFF; --line:#EBE6DC;
     --acc:#0F7A6B; --acc-ink:#0B5A4E; --acc-soft:#E3F0ED;
     --wb:#EFF5F2; --wb-line:#CFE6DD;
     --amber-soft:#FAEEDA; --amber-ink:#854F0B;
@@ -18,7 +18,7 @@
   }
   @media (prefers-color-scheme:dark){
     :root{
-      --paper:#17150F; --ink:#F0EBE1; --muted:#9A9385; --card:#221F19; --line:#322E27;
+      --paper:#17150F; --ink:#F0EBE1; --muted:#ACA495; --card:#221F19; --line:#322E27;
       --acc:#4FB3A2; --acc-ink:#9FE1CB; --acc-soft:#123029;
       --wb:#161E1A; --wb-line:#22362F;
       --amber-soft:#3A2A0F; --amber-ink:#FAC775;
@@ -56,7 +56,12 @@
   .bub{max-width:100%; padding:9px 12px; border-radius:16px; font-size:15px; line-height:1.55; position:relative; cursor:pointer; white-space:pre-wrap;}
   .bub.them{background:var(--card); border:0.5px solid var(--line);}
   .bub.me{background:var(--acc-soft); color:var(--acc-ink);}
-  .bub .sub{font-size:11px; color:var(--muted); margin-top:4px;}
+  .bub .sub{font-size:11.5px; color:var(--muted); margin-top:4px;}
+  .nofuri rt{display:none;}
+  #bigShow{position:fixed; inset:0; background:var(--paper); z-index:99; display:none; align-items:center; justify-content:center; padding:26px; cursor:pointer;}
+  #bigShow.on{display:flex;}
+  #bigShow .t{font-size:44px; line-height:1.75; text-align:center; font-weight:600; max-width:100%;}
+  #bigShow .hint{position:absolute; bottom:22px; left:0; right:0; text-align:center; font-size:12px; color:var(--muted);}
   .msgwrap{display:flex; flex-direction:column; max-width:82%;}
   .msgwrap.me{align-self:flex-end; align-items:flex-end;}
   .msgwrap.them{align-self:flex-start; align-items:flex-start;}
@@ -153,7 +158,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v21 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v22 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -197,6 +202,7 @@
     <div class="setrow" style="margin-top:10px;"><div class="lbl">API key — stays on this device only</div><input id="setKey" type="password" placeholder="paste your key…" autocomplete="off"></div>
     <div class="setrow"><div class="lbl">Model</div><input id="setModel" autocomplete="off"></div>
     <div class="setrow"><div class="lbl">OpenAI key (optional — Whisper dictation, the same engine as ChatGPT's mic)</div><input id="setOaKey" type="password" placeholder="sk-… (blank = dictate via Gemini)" autocomplete="off"></div>
+    <div class="lbl">Furigana (readings above kanji)</div><div class="segbtns" id="furiBtns" style="margin-bottom:10px;"><button data-f="on">on ・振り仮名</button><button data-f="off">off</button></div>
     <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:8px;">No key = demo mode. Dictation records real audio and transcribes with Whisper (if OpenAI key) or Gemini — every recording is saved first, so nothing is lost to a network error. Wispr Flow / system dictation also works: focus any text box and dictate.</div>
     <div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="chip" id="voiceBtn" style="background:var(--acc);color:#fff;">🗣 My voice</button><button class="chip" id="dictHistBtn" style="background:var(--wb);color:var(--muted);">🎙 Dictation history</button><button class="chip" id="exportBtn" style="background:var(--wb);color:var(--muted);">⬇ Export data</button><button class="chip" id="importDataBtn" style="background:var(--wb);color:var(--muted);">⬆ Restore backup</button></div>
     <input type="file" id="importDataFile" accept=".json,application/json" style="display:none;">
@@ -301,6 +307,8 @@
     <div id="talkStatus" class="lbl" style="text-align:center;margin-top:6px;"></div>
     <div style="text-align:center;margin-top:8px;"><button class="btn" id="talkClose" style="flex:none;padding:11px 32px;">✕ Close</button></div>
   </div></div>
+
+  <div id="bigShow"><div class="t"></div><div class="hint">tap anywhere to close · タップで閉じる</div></div>
 
   <div class="wb" id="wb">
     <div class="wb-hd"><span class="ic" style="color:var(--acc)">🔒</span><div style="flex:1"><div class="t">Workbench</div><div class="sub" id="wbSub">private · only you see this</div></div><button class="chip" style="background:none;color:var(--muted)" id="wbClose">⌄</button></div>
@@ -503,6 +511,7 @@
     var prevScroll=thread.scrollTop;
     thread.innerHTML=''; openActbar=null;
     renderPinsBar();
+    if(!C().msgs.length){ var es=document.createElement('div'); es.style.cssText='margin:auto;text-align:center;color:var(--muted);font-size:13px;line-height:1.8;padding:30px 26px;'; es.innerHTML = uiLang()==='ja' ? '下のボックスに話すか、入力してください。<br>ジュリアンが読める形に翻訳されます。' : 'Say it in English below — it becomes natural Japanese in the right register,<br>and you review it before it sends.<br><span style="font-size:12px;">🎤 to dictate · 🎙 in-person mode is in ⋮</span>'; thread.appendChild(es); }
     var lastTs=null;
     C().msgs.forEach(function(m, idx){
       if(m.ts && (!lastTs || !sameDay(lastTs,m.ts))){ var sep=document.createElement('div'); sep.className='seg'; sep.textContent=fmtDay(m.ts); thread.appendChild(sep); }
@@ -630,7 +639,14 @@
   function runCompose(){ var text=pending.text; if(!liveOn()){ pending.res=compose(text); drawReview(); return; } var mine=++composeSeq; reviewBody.innerHTML=spinnerHtml(); composeLive(text,statusFn(mine)).then(function(res){ if(mine!==composeSeq)return; pending.res=res; drawReview(); }).catch(function(err){ if(mine!==composeSeq)return; pending.res=errRes(err); drawReview(); }); }
   function openReview(){ var text=input.value.trim(); if(!text)return; pending={text:text,res:null}; document.getElementById('reviewTitle').textContent=t('review'); scrim.classList.add('on'); runCompose(); }
   function flagsHtml(r){ return (r.flags||[]).map(function(f){ return '<div class="flag '+f.type+'">'+(f.type==='warn'?'⚠':'✓')+'&nbsp;'+f.t+'</div>'; }).join(''); }
-  function drawReview(){ var r=pending.res; reviewBody.innerHTML='<div><div class="lbl">'+t('youSaid')+'</div><div class="src">'+esc(pending.text)+'</div></div><div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--muted)">↓</span>'+(curSrc()==='en'?'<span class="chip"><span class="dot"></span>'+regLabels[register]+'</span>':'<span class="chip"><span class="dot"></span>→ English</span>')+'</div><div class="jp">'+r.jp+'</div><div class="back"><div class="lbl">'+t('readsBack')+'</div><div class="txt">'+r.back+'</div></div>'+flagsHtml(r); document.getElementById('sendIt').textContent=t('sendIt'); document.getElementById('redo').textContent=t('redo'); }
+  function drawReview(){ var r=pending.res;
+    // register is switchable IN the review — "too stiff" shouldn't mean close-change-resend
+    var regSel = curSrc()==='en'
+      ? '<div class="segbtns" style="margin:0;flex:1;max-width:290px;">'+['casual','polite','keigo'].map(function(rg){return '<button data-rr="'+rg+'"'+(rg===register?' class="on"':'')+'>'+regLabels[rg].split(' · ')[0]+'</button>';}).join('')+'</div>'
+      : '<span class="chip"><span class="dot"></span>→ English</span>';
+    reviewBody.innerHTML='<div><div class="lbl">'+t('youSaid')+'</div><div class="src">'+esc(pending.text)+'</div></div><div style="display:flex;align-items:center;gap:8px;"><span style="color:var(--muted)">↓</span>'+regSel+'</div><div class="jp">'+r.jp+'</div><div class="back"><div class="lbl">'+t('readsBack')+'</div><div class="txt">'+r.back+'</div></div>'+flagsHtml(r);
+    reviewBody.querySelectorAll('[data-rr]').forEach(function(b){ b.onclick=function(){ if(register===b.dataset.rr) return; register=b.dataset.rr; C().reg=register; save(); renderRegLabel(); runCompose(); }; });
+    document.getElementById('sendIt').textContent=t('sendIt'); document.getElementById('redo').textContent=t('redo'); }
   send.onclick=openReview;
   document.getElementById('reviewClose').onclick=function(){ composeSeq++; scrim.classList.remove('on'); };
   document.getElementById('redo').onclick=function(){ if(pending) runCompose(); };
@@ -945,7 +961,9 @@
       var small = toJa ? esc(j.back_translation||'') : rubyfy(j.japanese||'');
       var speakTxt = toJa ? plain(rubyfy(j.japanese||'')) : String(j.back_translation||'');
       document.getElementById('talkInput').value='';
-      out.innerHTML='<div class="jp" style="font-size:23px;text-align:center;padding:6px 0;">'+big+'</div><div class="lbl" style="text-align:center;">'+small+'</div><div style="display:flex;gap:8px;justify-content:center;margin-top:10px;"><button class="btn" id="talkSpeak" style="flex:none;padding:10px 20px;">'+(ja?'🔊 読み上げ':'🔊 Say it')+'</button></div><div class="lbl" style="text-align:center;margin-top:6px;">✓ '+(ja?'追加しました — 続けて話せます':'in the chat — say more, or tap the other side to switch')+'</div>';
+      out.innerHTML='<div class="jp" id="talkBig" style="font-size:23px;text-align:center;padding:6px 0;cursor:pointer;">'+big+'</div><div class="lbl" style="text-align:center;">'+small+'</div><div style="display:flex;gap:8px;justify-content:center;margin-top:10px;"><button class="btn" id="talkShow" style="flex:none;padding:10px 16px;">⤢ '+(ja?'大きく表示':'Show them')+'</button><button class="btn" id="talkSpeak" style="flex:none;padding:10px 16px;">'+(ja?'🔊 読み上げ':'🔊 Say it')+'</button></div><div class="lbl" style="text-align:center;margin-top:6px;">✓ '+(ja?'追加しました — 続けて話せます':'in the chat — say more, or tap the other side to switch')+'</div>';
+      document.getElementById('talkBig').onclick=function(){ openBig(big); };
+      document.getElementById('talkShow').onclick=function(){ openBig(big); };
       document.getElementById('talkSpeak').onclick=function(){ try{ var u=new SpeechSynthesisUtterance(speakTxt); u.lang=toJa?'ja-JP':'en-US'; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){} };
     }).catch(function(e){ out.innerHTML='<div class="flag warn">⚠ '+esc(e.message||String(e))+'</div>'; });
   };
@@ -1179,10 +1197,22 @@
   var setSheet=document.getElementById('setSheet'), setKey=document.getElementById('setKey'), setModel=document.getElementById('setModel');
   function markProv(){ document.querySelectorAll('#provbtns button').forEach(function(x){x.classList.toggle('on',x.dataset.p===cfg.provider);}); }
   function updateAiBadge(){ document.getElementById('setBtn').textContent=liveOn()?'⚙ AI: live':'⚙ AI: demo'; }
-  document.getElementById('setBtn').onclick=function(){ markProv(); setKey.value=cfg.key; setModel.value=cfg.model||defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); document.getElementById('setOaKey').value=cfg.oaKey; setSheet.classList.add('on'); };
+  document.getElementById('setBtn').onclick=function(){ markProv(); markFuri(); setKey.value=cfg.key; setModel.value=cfg.model||defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); document.getElementById('setOaKey').value=cfg.oaKey; setSheet.classList.add('on'); };
   document.querySelectorAll('#provbtns button').forEach(function(x){ x.onclick=function(){ cfg.provider=x.dataset.p; markProv(); setModel.value=defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); }; });
   document.getElementById('setDone').onclick=function(){ cfg.key=setKey.value.trim(); cfg.model=setModel.value.trim(); cfg.oaKey=document.getElementById('setOaKey').value.trim(); localStorage.setItem('bt_provider',cfg.provider); localStorage.setItem('bt_key',cfg.key); localStorage.setItem('bt_model',cfg.model); localStorage.setItem('bt_oakey',cfg.oaKey); updateAiBadge(); setSheet.classList.remove('on'); };
   document.getElementById('resetData').onclick=function(){ if(!confirm('Reset all conversations and people to seed data?'))return; var kill=['bt_state_v5','bt_state_v4','bt_state_v3','bt_state_v2']; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('bt_draft')===0) kill.push(k); } kill.forEach(function(k){localStorage.removeItem(k);}); location.reload(); };
+
+  // furigana toggle — display-level, applies everywhere at once
+  var furi=localStorage.getItem('bt_furi')||'on';
+  function applyFuri(){ document.querySelector('.app').classList.toggle('nofuri', furi==='off'); }
+  function markFuri(){ document.querySelectorAll('#furiBtns button').forEach(function(x){x.classList.toggle('on',x.dataset.f===furi);}); }
+  document.querySelectorAll('#furiBtns button').forEach(function(x){ x.onclick=function(){ furi=x.dataset.f; localStorage.setItem('bt_furi',furi); markFuri(); applyFuri(); }; });
+  applyFuri();
+
+  // full-screen "show them" view — huge type for holding the phone up to someone
+  var bigShow=document.getElementById('bigShow');
+  bigShow.onclick=function(){ bigShow.classList.remove('on'); };
+  function openBig(html){ bigShow.querySelector('.t').innerHTML=html; bigShow.classList.add('on'); }
 
   // My voice editor
   var voiceSheet=document.getElementById('voiceSheet');
