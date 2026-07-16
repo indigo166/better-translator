@@ -153,7 +153,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v20 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v21 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -965,7 +965,8 @@
   document.getElementById('menuMemory').onclick=function(){
     if(!liveOn()){ document.getElementById('menuStatus').textContent='Memory needs a live AI — add a key in ⚙.'; return; }
     var ps=partsOf(C()).filter(function(x){return !x.p.guest;}); if(!ps.length){ document.getElementById('menuStatus').textContent='Quick chats have no person — assign one first (👤).'; return; } document.getElementById('menuStatus').innerHTML='<div class="spinner"></div>';
-    var seq=ps.reduce(function(chain,x){ return chain.then(function(){ var p=x.p; var prompt='You maintain a running MEMORY note about '+p.name+' for Julian ('+p.desc+').\nExisting memory:\n'+(p.memory||'(empty)')+'\nNew conversation:\n'+histText()+'\nReturn an UPDATED memory as concise markdown bullet points: merge new durable facts/plans/preferences into the existing memory, dedupe, keep it tight (max ~8 bullets). Return ONLY the bullet list, no preamble.'; return callLLM(prompt).then(function(txt){ p.memory=String(txt).trim(); save(); }); }); }, Promise.resolve());
+    // distill the WHOLE thread (histFull, capped ~14k chars) — the last-12-messages histText() starved this on long threads
+    var seq=ps.reduce(function(chain,x){ return chain.then(function(){ var p=x.p; var prompt='You maintain a running MEMORY note about '+p.name+' — Julian\'s '+p.desc+'. Today is '+new Date().toDateString()+'.\nEXISTING MEMORY:\n'+(p.memory||'(empty)')+'\nFULL CONVERSATION:\n'+histFull()+'\nReturn the UPDATED memory: markdown bullets, max ~12, ordered most-important-first. Capture only what stays true and useful for composing future messages to '+p.name+':\n- their situation, family, work, plans (convert relative dates to absolute using today\'s date)\n- preferences, personality, how they like to communicate\n- SENSITIVE topics and relationship dynamics to handle with care (name them plainly)\n- promises/commitments either side made\nMerge with the existing memory, dedupe, drop anything superseded. NO chit-chat, NO one-off logistics that expired, NO summary of the conversation itself. Return ONLY the bullet list, no preamble.'; return callLLM(prompt,null,{maxTokens:4096,timeout:60000}).then(function(txt){ p.memory=String(txt).trim(); save(); }); }); }, Promise.resolve());
     seq.then(function(){ document.getElementById('menuStatus').textContent='Memory updated ✓ (see ⋮ → Edit → view .md)'; }).catch(function(e){ document.getElementById('menuStatus').textContent='Couldn\'t update: '+(e.message||e); });
   };
 
