@@ -153,7 +153,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v18 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v19 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -198,7 +198,7 @@
     <div class="setrow"><div class="lbl">Model</div><input id="setModel" autocomplete="off"></div>
     <div class="setrow"><div class="lbl">OpenAI key (optional — Whisper dictation, the same engine as ChatGPT's mic)</div><input id="setOaKey" type="password" placeholder="sk-… (blank = dictate via Gemini)" autocomplete="off"></div>
     <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:8px;">No key = demo mode. Dictation records real audio and transcribes with Whisper (if OpenAI key) or Gemini — every recording is saved first, so nothing is lost to a network error. Wispr Flow / system dictation also works: focus any text box and dictate.</div>
-    <div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="chip" id="dictHistBtn" style="background:var(--wb);color:var(--muted);">🎙 Dictation history</button><button class="chip" id="exportBtn" style="background:var(--wb);color:var(--muted);">⬇ Export data</button><button class="chip" id="importDataBtn" style="background:var(--wb);color:var(--muted);">⬆ Restore backup</button></div>
+    <div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="chip" id="voiceBtn" style="background:var(--acc);color:#fff;">🗣 My voice</button><button class="chip" id="dictHistBtn" style="background:var(--wb);color:var(--muted);">🎙 Dictation history</button><button class="chip" id="exportBtn" style="background:var(--wb);color:var(--muted);">⬇ Export data</button><button class="chip" id="importDataBtn" style="background:var(--wb);color:var(--muted);">⬆ Restore backup</button></div>
     <input type="file" id="importDataFile" accept=".json,application/json" style="display:none;">
     <div style="display:flex;gap:10px;justify-content:center;"><button class="btn" id="resetData" style="flex:none;padding:11px 20px;">Reset chat data</button><button class="btn primary" id="setDone" style="flex:none;padding:11px 40px;">Save</button></div>
   </div></div>
@@ -233,7 +233,7 @@
 
   <div class="regsheet" id="importSheet"><div class="regcard">
     <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Import a conversation</div>
-    <div class="lbl">Choose your exported <b>.md</b> / <b>.txt</b> file (ChatGPT &amp; Claude exports import perfectly), or paste text below.</div>
+    <div class="lbl">Choose your exported file — <b>ChatGPT/Claude .md</b> and <b>LINE .txt</b> (トーク履歴を送信) import perfectly with real dates — or paste text below.</div>
     <div style="margin:9px 0 4px;"><button class="chip" id="importFileBtn" style="background:var(--acc);color:#fff;">📄 Choose a .md / .txt file</button><span id="importFileName" class="lbl" style="margin-left:8px;"></span></div>
     <input type="file" id="importFile" accept=".md,.markdown,.txt,text/plain,text/markdown" style="display:none;">
     <div class="setrow" style="margin-top:6px;"><textarea id="importText" rows="6" placeholder="…or paste the conversation here"></textarea></div>
@@ -270,6 +270,14 @@
     <div class="menuitem danger" id="menuDelete">🗑 Delete conversation</div>
     <div id="menuStatus" class="lbl" style="text-align:center;"></div>
     <div style="text-align:center;margin-top:8px;"><button class="btn" id="menuClose" style="flex:none;padding:11px 32px;">Close</button></div>
+  </div></div>
+
+  <div class="regsheet" id="voiceSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:2px;">🗣 My voice</div>
+    <div class="lbl">This line rides along with EVERY message the AI composes for you — it's what keeps the Japanese sounding like you instead of a textbook. Describe your tone, quirks, what to avoid. Tune it whenever a message doesn't feel like you.</div>
+    <div class="setrow" style="margin-top:8px;"><textarea id="voiceText" rows="5" placeholder="e.g. warm and direct, jokes around with family, short sentences, never stiff or formal-robotic…"></textarea></div>
+    <div class="lbl">Saved into your data (and backups). Examples of useful notes: "I tease Sho a lot", "I never use flowery keigo", "I end casual messages with exclamation points".</div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:10px;"><button class="btn" id="voiceReset" style="flex:none;padding:11px 20px;">Reset default</button><button class="btn primary" id="voiceSave" style="flex:none;padding:11px 32px;">Save</button></div>
   </div></div>
 
   <div class="regsheet" id="listSheet"><div class="regcard">
@@ -345,6 +353,10 @@
   }
   function loadStore(){ try{ var raw=localStorage.getItem(STORE_KEY); if(raw){ var s=JSON.parse(raw); if(s&&s.people&&s.convos) return s; } var m=migrateOld(); if(m) return m; return seedStore(); }catch(e){ return seedStore(); } }
   var store=loadStore();
+  // Voice profile — the single line that keeps output sounding like Julian. Lives in the store so backups carry it.
+  var DEFAULT_VOICE='warm, direct, a little playful; never stiff. Keep it sounding like him.';
+  if(!store.voice) store.voice=DEFAULT_VOICE;
+  function voiceDesc(){ return store.voice||DEFAULT_VOICE; }
   // Built-in "guest" — for one-off strangers (train station, staff). Never listed, never gets a .md or memory.
   if(!store.people.guest) store.people.guest={name:'Someone', reg:'polite', lang:'ja', color:'#6E7B74', icon:'👤', desc:'someone I am talking to one-off (a stranger, staff, someone at the station) — polite, neutral, no shared history', memory:'', guest:true};
   function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){} }
@@ -388,12 +400,12 @@
   function audienceDesc(){ var ps=partsOf(C()).filter(function(x){return x.id!==activeSpeaker;}); if(!ps.length)ps=partsOf(C()); if(ps.length===1) return 'writing to '+ps[0].p.name+' — '+ps[0].p.desc; return 'writing ONE message to a group with: '+ps.map(function(x){return x.p.name+' ('+x.p.desc+')';}).join(' | ')+'. Use one register for the whole group.'; }
   function jsonSpec(){ return 'Write the "flags" text and "voice_note" in '+langWord()+'.\nReturn ONLY JSON, no fences:\n{"japanese":"Japanese; after EVERY kanji word add its reading in square brackets, e.g. 今週末[こんしゅうまつ]","back_translation":"faithful English of that Japanese","flags":[{"type":"warn or ok","text":"short note on tone/nuance"}],"voice_note":"one short sentence"}'; }
   function composePrompt(text){
-    if(curSrc()==='en'){ return 'You compose Japanese for Julian, who is '+audienceDesc()+'\n'+memoryBlock()+'REGISTER (must follow): '+REGDESC[register]+'\nJULIAN\'S VOICE: warm, direct, a little playful; never stiff. Keep it sounding like him.\nCONVERSATION SO FAR:\n'+histText()+'\nHE WANTS TO SAY (English): "'+text+'"\n'+jsonSpec(); }
+    if(curSrc()==='en'){ return 'You compose Japanese for Julian, who is '+audienceDesc()+'\n'+memoryBlock()+'REGISTER (must follow): '+REGDESC[register]+'\nJULIAN\'S VOICE (must keep): '+voiceDesc()+'\nCONVERSATION SO FAR:\n'+histText()+'\nHE WANTS TO SAY (English): "'+text+'"\n'+jsonSpec(); }
     // A Japanese speaker sending their own words needs NO commentary/coaching — just an echo + a clean English gloss
     return spk().name+' just said this in Japanese: "'+text+'".\nReturn ONLY JSON, no fences: {"japanese":"their Japanese exactly (typos silently corrected); readings in square brackets ONLY after kanji, never after kana","back_translation":"plain natural English translation — no comments, notes, or suggestions","flags":[]}';
   }
   function editPrompt(m, newSrc){
-    if(authorLang(m)==='en'){ return 'You compose Japanese for Julian, who is '+audienceDesc()+'\nREGISTER: '+REGDESC[register]+'\nHe previously meant (English): "'+(m.en||'')+'"\nHe EDITED his English to: "'+newSrc+'"\nRecompose the WHOLE Japanese to faithfully match the edited English (may change beyond a word swap).\n'+jsonSpec(); }
+    if(authorLang(m)==='en'){ return 'You compose Japanese for Julian, who is '+audienceDesc()+'\nREGISTER: '+REGDESC[register]+'\nJULIAN\'S VOICE (must keep): '+voiceDesc()+'\nHe previously meant (English): "'+(m.en||'')+'"\nHe EDITED his English to: "'+newSrc+'"\nRecompose the WHOLE Japanese to faithfully match the edited English (may change beyond a word swap).\n'+jsonSpec(); }
     return store.people[m.by].name+' edited their Japanese message to: "'+newSrc+'".\nReturn ONLY JSON, no fences: {"japanese":"their Japanese exactly (typos silently corrected); readings in square brackets ONLY after kanji, never after kana","back_translation":"plain natural English translation — no comments or notes","flags":[]}';
   }
 
@@ -889,7 +901,7 @@
     var toJa = talkSide==='me';
     var noComment='no comments, no notes about spelling/grammar/politeness, no parentheses — ONLY the translation itself';
     var p = toJa
-      ? 'Julian is speaking IN PERSON to '+o.name+'. Translate his English into natural spoken Japanese ('+REGDESC[register]+'). He said: "'+v+'"\nReturn ONLY JSON: {"japanese":"the Japanese; readings in square brackets ONLY after kanji words, never after kana","back_translation":"faithful plain English — '+noComment+'"}'
+      ? 'Julian is speaking IN PERSON to '+o.name+'. Translate his English into natural spoken Japanese ('+REGDESC[register]+'), in his voice: '+voiceDesc()+'\nHe said: "'+v+'"\nReturn ONLY JSON: {"japanese":"the Japanese; readings in square brackets ONLY after kanji words, never after kana","back_translation":"faithful plain English — '+noComment+'"}'
       : o.name+' is speaking IN PERSON to Julian in Japanese (may contain typos/mis-kana — interpret what they meant, silently corrected). They said: "'+v+'"\nReturn ONLY JSON: {"japanese":"their Japanese, corrected; readings in square brackets ONLY after kanji, never after kana","back_translation":"natural plain English translation — '+noComment+'"}';
     callLLM(p,null,{json:true,timeout:20000}).then(function(tx){ var j=parseModelJSON(tx);
       // AUTO-KEEP: translating IS sending — the turn lands in the chat immediately, no extra button.
@@ -1003,6 +1015,53 @@
     for(var k=0;k<out.length;k++){ if(out[k].who!=='me') continue; if(out[k].en) lastMeEn=out[k].en; else if(lastMeEn) out[k].en=lastMeEn; }
     return out;
   }
+  // Deterministic parser for LINE chat exports (.txt): date header lines + "HH:MM<TAB>sender<TAB>message",
+  // multiline continuations, JA + EN locale dates, stickers kept as tokens, calls/unsent dropped.
+  function parseLINEExport(text){
+    var lines=String(text).split(/\r?\n/);
+    var tabMsgs=lines.filter(function(l){return /^\d{1,2}:\d{2}(?:\s*[AP]\.?M\.?)?\t[^\t]*\t/i.test(l);}).length;
+    if(!/^\[LINE\]/.test(lines[0]||'') && tabMsgs<3) return null;
+    var msgs=[], curDate=null, last=null;
+    function dateFrom(l){
+      var m=l.match(/^(\d{4})[\/.年](\d{1,2})[\/.月](\d{1,2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3]).getTime();
+      m=l.match(/^[A-Za-z]{3,},?\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return new Date(+m[3],+m[1]-1,+m[2]).getTime();
+      m=l.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); if(m) return new Date(+m[3],+m[1]-1,+m[2]).getTime();
+      return null;
+    }
+    for(var i=0;i<lines.length;i++){
+      var l=lines[i];
+      if(/^\[LINE\]/.test(l)||/^(保存日時|Saved on)/i.test(l)) continue;
+      if(l.indexOf('\t')<0){ var d=dateFrom(l); if(d!==null){ curDate=d; last=null; continue; } }
+      var m=l.match(/^(\d{1,2}):(\d{2})(?:\s*([AP])\.?M\.?)?\t([^\t]*)\t([\s\S]*)$/i);
+      if(m){
+        var hh=+m[1]; if(m[3]){ if(/p/i.test(m[3])&&hh<12)hh+=12; if(/a/i.test(m[3])&&hh===12)hh=0; }
+        var body=m[5];
+        if(/^☎|通話時間|不在着信|Missed call|Call time|canceled a call|メッセージの送信を取り消しました|unsent a message/i.test(body)){ last=null; continue; }
+        last={sender:m[4].trim(), body:body, ts:(curDate||Date.now())+hh*3600000+(+m[2])*60000};
+        msgs.push(last); continue;
+      }
+      if(last && l.trim()!=='') last.body+='\n'+l;   // multiline message continuation
+    }
+    return msgs.length>=2 ? msgs : null;
+  }
+  // After a LINE import, messages exist in ONE language — fill the other side in batches so both views work.
+  function fillTranslations(statusEl, onDone){
+    if(!liveOn()){ statusEl.textContent='Imported ✓ — add an AI key (⚙) then re-open Import to fill in translations.'; if(onDone)onDone(); return; }
+    var c=C(), k=cur, need=[];
+    c.msgs.forEach(function(m,i){ if(m.sys) return; var hasJa=/[぀-ヿ㐀-鿿]/.test(plain(m.jp||'')); if(hasJa&&!m.en) need.push({i:i,dir:'ja>en',t:plain(m.jp).slice(0,600)}); else if(!hasJa&&m.en&&!plain(m.jp||'').trim()) need.push({i:i,dir:'en>ja',t:String(m.en).slice(0,600)}); });
+    if(!need.length){ if(onDone)onDone(); return; }
+    var chunks=[]; for(var i=0;i<need.length;i+=25) chunks.push(need.slice(i,i+25));
+    var done=0;
+    chunks.reduce(function(pr,ch,ci){ return pr.then(function(){
+      if(cur!==k) return;   // user navigated away — stop quietly, gaps render fine
+      statusEl.textContent='filling translations… '+(ci+1)+' / '+chunks.length;
+      var p='Translate each item; keep the tone (family chat). "ja>en" = Japanese to natural English. "en>ja" = English to natural Japanese (readings in square brackets ONLY after kanji, never after kana). No commentary.\nReturn ONLY JSON: {"out":[{"i":<same i as given>,"t":"the translation"}]}\nITEMS:\n'+JSON.stringify(ch);
+      return callLLM(p,null,{json:true,maxTokens:8192,timeout:60000}).then(function(tx){ var j=parseModelJSON(tx);
+        (j.out||[]).forEach(function(o){ var item=ch.filter(function(x){return x.i===o.i;})[0]; if(!item||!o.t) return; var m=store.convos[k]&&store.convos[k].msgs[o.i]; if(!m) return; if(item.dir==='ja>en') m.en=String(o.t); else m.jp=rubyfy(String(o.t)); done++; });
+        save(); if(cur===k) renderThread(true);
+      }).catch(function(){});   // a failed batch leaves gaps — bubbles fall back to the language they have
+    }); }, Promise.resolve()).then(function(){ statusEl.textContent='Imported + translated '+done+' ✓'; if(onDone)onDone(); });
+  }
   function finishImport(results, failed, total, statusEl){
     var added=0, now=Date.now(), tsi=0;
     results.forEach(function(item){ var jp=rubyfy(item.jp||item.japanese||''); var en=String(item.en||item.english||''); if(!plain(jp)&&!en) return; var who='them',by=C().parts[0],sp=String(item.speaker||'').toLowerCase(); if(sp==='me'||sp==='julian'){who='me';by=null;} else { var match=C().parts.filter(function(id){return store.people[id].name.toLowerCase().indexOf(sp)>-1||sp.indexOf(store.people[id].name.toLowerCase())>-1;})[0]; if(match)by=match; } var m={who:who,jp:jp,en:en,ts:now+(tsi++),imported:true,source:impSrcVal}; if(who==='them')m.by=by; C().msgs.push(m); added++; });
@@ -1025,7 +1084,29 @@
       setTimeout(function(){ importSheet.classList.remove('on'); }, 1100);
       return;
     }
-    if(!liveOn()){ statusEl.textContent='Importing needs a live AI (or paste a ChatGPT/Claude export) — add a key in ⚙.'; return; }
+    // LINE .txt export → parse directly (no AI, real timestamps), then fill missing translations in batches
+    var lmsgs=parseLINEExport(raw);
+    if(lmsgs && lmsgs.length){
+      var pIds=C().parts;
+      function senderWho(s){ var sl=s.toLowerCase();
+        var match=pIds.filter(function(id){ var n=(store.people[id].name||'').toLowerCase(); return n && n!=='someone' && (sl.indexOf(n)>-1||n.indexOf(sl)>-1); })[0];
+        if(match) return {who:'them', by:match};
+        if(/julian|ジュリアン/i.test(s)) return {who:'me'};
+        return null; }
+      var mapped={}; lmsgs.forEach(function(m){ if(!(m.sender in mapped)) mapped[m.sender]=senderWho(m.sender); });
+      var hasThem=Object.keys(mapped).some(function(s){return mapped[s]&&mapped[s].who==='them';});
+      Object.keys(mapped).forEach(function(s){ if(!mapped[s]) mapped[s]= hasThem?{who:'me'}:{who:'them',by:pIds[0]}; });   // unmatched sender: the other side of a matched person = Julian; otherwise treat as them
+      var addedL=0;
+      lmsgs.forEach(function(lm){ var w=mapped[lm.sender]; var hasJa=/[぀-ヿ㐀-鿿]/.test(lm.body);
+        var msg={who:w.who, jp:hasJa?rubyfy(lm.body):'', en:hasJa?'':lm.body, ts:lm.ts, imported:true, source:'line'};
+        if(w.who==='them') msg.by=w.by||pIds[0];
+        C().msgs.push(msg); addedL++; });
+      save(); renderThread(true); renderSuggs(); if(!C().title) aiTitle(true).then(renderChats);
+      statusEl.textContent='Imported '+addedL+' messages from LINE ✓';
+      fillTranslations(statusEl, function(){ setTimeout(function(){ importSheet.classList.remove('on'); }, 1400); });
+      return;
+    }
+    if(!liveOn()){ statusEl.textContent='Importing needs a live AI (or paste a ChatGPT/Claude or LINE export) — add a key in ⚙.'; return; }
     var names=partsOf(C()).map(function(x){return x.p.name;});
     var chunks=chunkText(raw, 4000);
     if(chunks.length>40){ if(!confirm("That's very long ("+chunks.length+' parts) and may take a few minutes. Import the first 40 parts?')) return; chunks=chunks.slice(0,40); }
@@ -1047,6 +1128,12 @@
   document.querySelectorAll('#provbtns button').forEach(function(x){ x.onclick=function(){ cfg.provider=x.dataset.p; markProv(); setModel.value=defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); }; });
   document.getElementById('setDone').onclick=function(){ cfg.key=setKey.value.trim(); cfg.model=setModel.value.trim(); cfg.oaKey=document.getElementById('setOaKey').value.trim(); localStorage.setItem('bt_provider',cfg.provider); localStorage.setItem('bt_key',cfg.key); localStorage.setItem('bt_model',cfg.model); localStorage.setItem('bt_oakey',cfg.oaKey); updateAiBadge(); setSheet.classList.remove('on'); };
   document.getElementById('resetData').onclick=function(){ if(!confirm('Reset all conversations and people to seed data?'))return; var kill=['bt_state_v5','bt_state_v4','bt_state_v3','bt_state_v2']; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('bt_draft')===0) kill.push(k); } kill.forEach(function(k){localStorage.removeItem(k);}); location.reload(); };
+
+  // My voice editor
+  var voiceSheet=document.getElementById('voiceSheet');
+  document.getElementById('voiceBtn').onclick=function(){ setSheet.classList.remove('on'); document.getElementById('voiceText').value=voiceDesc(); voiceSheet.classList.add('on'); };
+  document.getElementById('voiceReset').onclick=function(){ document.getElementById('voiceText').value=DEFAULT_VOICE; };
+  document.getElementById('voiceSave').onclick=function(){ store.voice=document.getElementById('voiceText').value.trim()||DEFAULT_VOICE; save(); voiceSheet.classList.remove('on'); };
 
   // ===== Backup: export/import everything (people, conversations, memories, drafts) as one .json =====
   // API keys are deliberately NOT exported (a backup file shouldn't carry credentials). Audio history stays on-device (too big for JSON).
