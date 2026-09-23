@@ -168,7 +168,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v27 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v28 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -252,7 +252,7 @@
     <div style="font-size:15px;font-weight:600;margin-bottom:4px;">Import a conversation</div>
     <div class="lbl">Choose your exported file — <b>ChatGPT/Claude .md</b> and <b>LINE .txt</b> (トーク履歴を送信) import perfectly with real dates — or paste text below.</div>
     <div style="margin:9px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><button class="chip" id="importFileBtn" style="background:var(--acc);color:#fff;">📄 .md / .txt file</button><button class="chip" id="importPhotoBtn" style="background:var(--acc);color:#fff;">📷 Photos / screenshots</button><span id="importFileName" class="lbl"></span></div>
-    <input type="file" id="importFile" accept=".md,.markdown,.txt,text/plain,text/markdown" style="display:none;">
+    <input type="file" id="importFile" accept=".md,.markdown,.txt,.json,text/plain,text/markdown,application/json" style="display:none;">
     <input type="file" id="importPhoto" accept="image/*" multiple style="display:none;">
     <div class="setrow" style="margin-top:6px;"><textarea id="importText" rows="6" placeholder="…or paste the conversation here"></textarea></div>
     <div class="lbl">Where's it from? (adds a label; photo/LINE also fixes OCR errors)</div>
@@ -1202,6 +1202,34 @@
       }).catch(function(){});   // a failed batch leaves gaps — bubbles fall back to the language they have
     }); }, Promise.resolve()).then(function(){ statusEl.textContent='Imported + translated '+done+' ✓'; if(onDone)onDone(); });
   }
+  // A curated file names its person: it lands in THAT person's 1:1 chat (person + chat created if missing), whichever chat
+  // Import was opened from. Messages already present (same time + same Japanese) are skipped, so re-importing is safe.
+  function importMessageFile(mf,statusEl){
+    var targetKey=cur, byDefault=C().parts[0];
+    if(mf.person && mf.person.name){
+      var nm=String(mf.person.name).toLowerCase();
+      var pid=listedPeople().filter(function(id){ return String(store.people[id].name||'').toLowerCase()===nm; })[0];
+      if(!pid){ pid='p'+Math.random().toString(36).slice(2,8); store.people[pid]={name:String(mf.person.name), desc:String(mf.person.desc||mf.person.name), reg:mf.person.reg||'polite', lang:mf.person.lang||'ja', color:nextColor(), icon:mf.person.icon||'', memory:''}; }
+      targetKey=convoKey([pid]); byDefault=pid;
+      if(!store.convos[targetKey]) store.convos[targetKey]={parts:[pid], reg:store.people[pid].reg, msgs:[], wb:{}, archived:false};
+      store.convos[targetKey].archived=false;
+    }
+    var c=store.convos[targetKey], seen={}, added=0, skipped=0;
+    c.msgs.forEach(function(m){ seen[(m.ts||0)+'|'+plain(m.jp||'').slice(0,40)]=1; });
+    mf.messages.forEach(function(x){
+      var ts=x.ts?Date.parse(x.ts):NaN; if(isNaN(ts)) ts=Date.now();
+      var m={who:x.who==='me'?'me':'them', jp:rubyfy(String(x.jp||'')), en:String(x.en||''), ts:ts, imported:true, source:mf.source||'line'};
+      if(m.who==='them') m.by=byDefault;
+      var k=m.ts+'|'+plain(m.jp).slice(0,40); if(seen[k]){ skipped++; return; } seen[k]=1;
+      c.msgs.push(m); added++;
+    });
+    c.msgs.sort(function(a,b){ return (a.ts||0)-(b.ts||0); });
+    if(mf.title && !c.title) c.title=String(mf.title);
+    delete c.topics; delete c._suggs;
+    save();
+    statusEl.textContent='Imported '+added+' message'+(added===1?'':'s')+(skipped?' · '+skipped+' already there':'')+' ✓';
+    setTimeout(function(){ importSheet.classList.remove('on'); openConvo(targetKey); renderChats(); },900);
+  }
   function finishImport(results, failed, total, statusEl){
     var added=0, now=Date.now(), tsi=0;
     results.forEach(function(item){ var jp=rubyfy(item.jp||item.japanese||''); var en=String(item.en||item.english||''); if(!plain(jp)&&!en) return; var who='them',by=C().parts[0],sp=String(item.speaker||'').toLowerCase(); if(sp==='me'||sp==='julian'){who='me';by=null;} else { var match=C().parts.filter(function(id){return store.people[id].name.toLowerCase().indexOf(sp)>-1||sp.indexOf(store.people[id].name.toLowerCase())>-1;})[0]; if(match)by=match; } var m={who:who,jp:jp,en:en,ts:now+(tsi++),imported:true,source:impSrcVal}; if(who==='them')m.by=by; C().msgs.push(m); added++; });
@@ -1226,6 +1254,9 @@
       return;
     }
     var raw=document.getElementById('importText').value.trim(); if(!raw)return;
+    // curated message file (a cleaned-up chat prepared outside the app) → exact text both languages, real times
+    var mf=null; if(raw.charAt(0)==='{'){ try{ mf=JSON.parse(raw); }catch(e){ mf=null; } }
+    if(mf && mf.app==='better-translator-messages' && Array.isArray(mf.messages)){ importMessageFile(mf,statusEl); return; }
     // ChatGPT/Claude markdown export → parse directly (no AI, no gaps, keeps every message + real timestamps)
     var parsed=parseChatGPTExport(raw);
     if(parsed && parsed.length){
