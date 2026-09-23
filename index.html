@@ -168,7 +168,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v26 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v27 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -1359,6 +1359,25 @@
     return fetchT('https://api.github.com/repos/'+cf.repo+'/contents/'+path,{method:method,headers:{'Authorization':'Bearer '+cf.token,'Accept':accept||'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},body:body?JSON.stringify(body):undefined},30000)
       .then(function(r){ if(r.status===404 && method==='GET') return null; if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){ var err=new Error(ghErr(r.status,e)); err.status=r.status; throw err; }); return (accept&&/raw/.test(accept))?r.text():r.json(); });
   }
+  // GitHub answers "404 not found" for BOTH a missing repo and a key that can't see it — so on 403/404, ask GitHub
+  // directly what this key is and what it can reach, and report THAT instead of a generic guess
+  function diagnoseGh(cf){
+    var H={'Authorization':'Bearer '+cf.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+    return fetchT('https://api.github.com/user',{headers:H},15000).then(function(r){
+      if(r.status===401) return 'GitHub rejected this key (mistyped, expired, or deleted). Copy it again from GitHub and paste it in.';
+      return r.json().then(function(u){
+        var owner=cf.repo.split('/')[0];
+        if(u.login && u.login.toLowerCase()!==owner.toLowerCase()) return 'This key was made on GitHub account "'+u.login+'", but the backup repo belongs to account "'+owner+'". Sign in to GitHub as "'+owner+'" and make the key there.';
+        return fetchT('https://api.github.com/repos/'+cf.repo,{headers:H},15000).then(function(r2){
+          if(r2.ok) return 'The key can SEE '+cf.repo+' but can\'t write to it. On GitHub: edit the key → Repository permissions → Contents → Read and write → Update.';
+          return fetchT('https://api.github.com/user/repos?per_page=100&sort=updated',{headers:H},15000).then(function(r3){ return r3.ok?r3.json():[]; }).then(function(list){
+            var names=(list||[]).map(function(x){ return x.full_name; });
+            return 'The key works (account '+(u.login||'?')+') but it can\'t see "'+cf.repo+'". Repos this key CAN see: '+(names.length?names.join(', '):'none')+'. On GitHub: edit the key → Repository access → Only select repositories → add better-translator-backup → Update.';
+          });
+        });
+      });
+    }).catch(function(e){ return 'Couldn\'t reach GitHub to check the key ('+(e.message||e)+').'; });
+  }
   function sha256Hex(str){ return crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)).then(function(b){ return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join(''); }); }
   function cloudBackup(force){
     if(!cloudConfigured()) return Promise.reject(new Error('set up the repo, key and passphrase first'));
@@ -1375,7 +1394,10 @@
         }).then(function(res){ localStorage.setItem('bt_cloud_sha:'+path,res.content.sha); localStorage.setItem('bt_cloud_hash',hash); return 'ok'; });
       });
     }).then(function(st){ localStorage.setItem('bt_cloud_last',String(Date.now())); localStorage.removeItem('bt_cloud_err'); localStorage.removeItem('bt_cloud_err_since'); cloudBusy=false; setCloudStatus(); updateCloudBanner(); return st; },
-      function(e){ localStorage.setItem('bt_cloud_err',String(e.message||e)); if(!localStorage.getItem('bt_cloud_err_since')) localStorage.setItem('bt_cloud_err_since',String(Date.now())); cloudBusy=false; setCloudStatus(); updateCloudBanner(); throw e; });
+      function(e){
+        function fail(msg){ localStorage.setItem('bt_cloud_err',msg); if(!localStorage.getItem('bt_cloud_err_since')) localStorage.setItem('bt_cloud_err_since',String(Date.now())); cloudBusy=false; setCloudStatus(); updateCloudBanner(); throw e; }
+        if(e.status===404||e.status===403){ setCloudStatus('checking what GitHub sees for this key…'); return diagnoseGh(cloud).then(fail); }
+        fail(String(e.message||e)); });
   }
   function cloudDirty(){ if(!cloudReady||!cloud.on||!cloudConfigured()) return; clearTimeout(cloudTimer); cloudTimer=setTimeout(function(){ cloudTimer=null; cloudBackup(false).catch(function(){}); },45000); }
   // leaving the app with a change still pending → upload now rather than wait out the timer
