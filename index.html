@@ -6,7 +6,11 @@
 <meta name="theme-color" content="#0F7A6B">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Translator">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Better Translator — prototype</title>
 <style>
   :root{
@@ -40,7 +44,9 @@
   .backbtn{background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer; padding:0 2px; line-height:1;}
   .menubtn{background:none; border:none; color:var(--muted); font-size:18px; cursor:pointer; padding:0 4px;}
   .rows{flex:1; overflow-y:auto;}
-  .row{display:flex; gap:11px; padding:13px 15px; border-bottom:0.5px solid var(--line); align-items:center; cursor:pointer;}
+  .row{display:flex; gap:11px; padding:13px 15px; border-bottom:0.5px solid var(--line); align-items:center; cursor:pointer; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;}
+  /* iOS Safari zooms the page when a field under 16px gets focus — keep every field at 16px on iOS */
+  @supports (-webkit-touch-callout:none){ input, textarea, select{ font-size:16px !important; } }
   .row:hover{background:var(--card);}
   .row .prev{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;}
   .row .meta{text-align:right; flex-shrink:0;}
@@ -161,7 +167,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v24 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v25 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -865,23 +871,32 @@
   function idbDel(id){ return idbOpen().then(function(db){ return new Promise(function(res){ var t=db.transaction('recs','readwrite'); t.objectStore('recs').delete(id); t.oncomplete=res; t.onerror=res; }); }); }
   function pruneRecs(){ idbAll().then(function(all){ all.sort(function(a,b){return b.id-a.id;}); all.slice(30).forEach(function(r){ idbDel(r.id); }); }).catch(function(){}); }
   function blobB64(blob){ return new Promise(function(res,rej){ var r=new FileReader(); r.onload=function(){ res(String(r.result).split(',')[1]); }; r.onerror=rej; r.readAsDataURL(blob); }); }
+  // iPhones record audio/mp4 (AAC); Chrome/Android record audio/webm. Codec params ("audio/webm;codecs=opus") break some APIs.
+  function baseMime(blob){ return String((blob&&blob.type)||'audio/webm').split(';')[0].trim()||'audio/webm'; }
+  function audioExt(mime){ return {'audio/mp4':'m4a','audio/x-m4a':'m4a','audio/aac':'aac','audio/mpeg':'mp3','audio/ogg':'ogg','audio/wav':'wav','audio/webm':'webm'}[mime]||'webm'; }
   function transcribe(blob){
     if(cfg.oaKey){
-      var fd=new FormData(); fd.append('file',blob,'audio.webm'); fd.append('model','whisper-1');
+      var fd=new FormData(); fd.append('file',blob,'audio.'+audioExt(baseMime(blob))); fd.append('model','whisper-1');
       return fetchT('https://api.openai.com/v1/audio/transcriptions',{method:'POST',headers:{'Authorization':'Bearer '+cfg.oaKey},body:fd},45000)
         .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('Whisper HTTP '+r.status));}); return r.json(); })
         .then(function(d){ return String(d.text||'').trim(); });
     }
     if(cfg.provider==='gemini' && cfg.key){
       return blobB64(blob).then(function(b64){
-        var body={contents:[{parts:[{text:'Transcribe this audio recording verbatim in its original language (English or Japanese). Return ONLY the transcript text — no labels, no commentary. If nothing intelligible was said, return an empty string.'},{inline_data:{mime_type:blob.type||'audio/webm',data:b64}}]}],generationConfig:{maxOutputTokens:2048}};
+        var mime=baseMime(blob);
+        function bodyFor(m){ return {contents:[{parts:[{text:'Transcribe this audio recording verbatim in its original language (English or Japanese). Return ONLY the transcript text — no labels, no commentary. If nothing intelligible was said, return an empty string.'},{inline_data:{mime_type:m,data:b64}}]}],generationConfig:{maxOutputTokens:2048}}; }
+        var body=bodyFor(mime);
         function tryModels(models,lastErr){ if(!models.length) return Promise.reject(lastErr||new Error('no Gemini model transcribed'));
           return fetchT('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(models[0])+':generateContent?key='+encodeURIComponent(cfg.key),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},45000)
             .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('HTTP '+r.status));}); return r.json(); })
             .then(function(d){ if(!d.candidates||!d.candidates[0].content||!d.candidates[0].content.parts) throw new Error('empty response'); return String(d.candidates[0].content.parts[0].text||'').trim(); })
-            .catch(function(e){ if(/api key|permission|unauthoriz|billing/i.test(e.message||'')) throw e; return tryModels(models.slice(1),e); });
+            .catch(function(e){ if(/api key|permission|unauthoriz|billing|mime/i.test(e.message||'')) throw e; return tryModels(models.slice(1),e); });
         }
-        return tryModels(geminiModelChain());
+        // iPhone audio: if Gemini refuses the mp4 label, the same AAC audio is retried under the audio/aac label
+        return tryModels(geminiModelChain()).catch(function(e){
+          if(!/mime|unsupported|invalid argument/i.test(e.message||'') || !/mp4|m4a/.test(mime)) throw e;
+          body=bodyFor('audio/aac'); return tryModels(geminiModelChain());
+        });
       });
     }
     return Promise.reject(new Error('Dictation needs a Gemini key or an OpenAI key (⚙).'));
