@@ -153,6 +153,7 @@
   <div class="view on" id="viewChats">
     <div class="hdr"><div style="flex:1"><div style="font-size:18px;font-weight:600;">Chats</div></div><button class="chip" id="setBtn" style="background:var(--wb); color:var(--muted);">⚙ AI: demo</button></div>
     <div style="padding:8px 12px 4px;"><div class="inrow" style="padding:4px 10px 4px 13px;"><span style="color:var(--muted);font-size:13px;">🔍</span><input id="searchInput" placeholder="Search all chats & messages…" style="flex:1;border:none;background:none;color:var(--ink);font:inherit;font-size:14px;outline:none;padding:5px 0;"><span id="searchClear" style="color:var(--muted);cursor:pointer;display:none;padding:0 2px;">✕</span></div></div>
+    <div id="cloudBanner" style="display:none;margin:2px 12px 4px;padding:9px 13px;border-radius:12px;background:var(--amber-soft);color:var(--amber-ink);font-size:12px;line-height:1.5;cursor:pointer;"></div>
     <div id="demoBanner" style="display:none;margin:2px 12px 4px;padding:9px 13px;border-radius:12px;background:var(--amber-soft);color:var(--amber-ink);font-size:12px;line-height:1.5;cursor:pointer;">Demo mode — tap here to add a free Gemini API key and unlock compose, import &amp; dictation.</div>
     <div class="rows" id="searchResults" style="display:none;"></div>
     <div class="rows" id="rows"></div>
@@ -167,7 +168,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v25 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v26 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -213,7 +214,7 @@
     <div class="setrow"><div class="lbl">OpenAI key (optional — Whisper dictation, the same engine as ChatGPT's mic)</div><input id="setOaKey" type="password" placeholder="sk-… (blank = dictate via Gemini)" autocomplete="off"></div>
     <div class="lbl">Furigana (readings above kanji)</div><div class="segbtns" id="furiBtns" style="margin-bottom:10px;"><button data-f="on">on ・振り仮名</button><button data-f="off">off</button></div>
     <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:8px;">No key = demo mode. Dictation records real audio and transcribes with Whisper (if OpenAI key) or Gemini — every recording is saved first, so nothing is lost to a network error. Wispr Flow / system dictation also works: focus any text box and dictate.</div>
-    <div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="chip" id="voiceBtn" style="background:var(--acc);color:#fff;">🗣 My voice</button><button class="chip" id="dictHistBtn" style="background:var(--wb);color:var(--muted);">🎙 Dictation history</button><button class="chip" id="exportBtn" style="background:var(--wb);color:var(--muted);">⬇ Export data</button><button class="chip" id="importDataBtn" style="background:var(--wb);color:var(--muted);">⬆ Restore backup</button></div>
+    <div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="chip" id="voiceBtn" style="background:var(--acc);color:#fff;">🗣 My voice</button><button class="chip" id="cloudBtn" style="background:var(--acc);color:#fff;">☁️ Auto-backup</button><button class="chip" id="dictHistBtn" style="background:var(--wb);color:var(--muted);">🎙 Dictation history</button><button class="chip" id="exportBtn" style="background:var(--wb);color:var(--muted);">⬇ Export data</button><button class="chip" id="importDataBtn" style="background:var(--wb);color:var(--muted);">⬆ Restore backup</button></div>
     <input type="file" id="importDataFile" accept=".json,application/json" style="display:none;">
     <div class="lbl" id="lastExport" style="text-align:center;margin-bottom:10px;"></div>
     <div style="display:flex;gap:10px;justify-content:center;"><button class="btn" id="resetData" style="flex:none;padding:11px 20px;">Reset chat data</button><button class="btn primary" id="setDone" style="flex:none;padding:11px 40px;">Save</button></div>
@@ -287,6 +288,25 @@
     <div class="menuitem danger" id="menuDelete">🗑 Delete conversation</div>
     <div id="menuStatus" class="lbl" style="text-align:center;"></div>
     <div style="text-align:center;margin-top:8px;"><button class="btn" id="menuClose" style="flex:none;padding:11px 32px;">Close</button></div>
+  </div></div>
+
+  <div class="regsheet" id="cloudSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;margin-bottom:2px;">☁️ Automatic backup</div>
+    <div class="lbl">Everything (chats, people, memories, your voice) is locked with YOUR passphrase on this device before it's uploaded — GitHub only ever stores scrambled bytes. Backs up by itself shortly after anything changes. Every backup is kept as a version, so older copies are recoverable too.</div>
+    <details style="margin:8px 0 4px;font-size:12px;color:var(--muted);line-height:1.6;"><summary style="cursor:pointer;color:var(--acc-ink);">One-time setup: make a GitHub key (2 min)</summary>
+      1. Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener" style="color:var(--acc-ink);">github.com → new fine-grained token</a><br>
+      2. Name it "Translator backup", expiration: pick the longest offered<br>
+      3. Repository access → <b>Only select repositories</b> → <b>better-translator-backup</b><br>
+      4. Permissions → Repository → <b>Contents: Read and write</b><br>
+      5. Generate → copy → paste below. This key can touch that one private repo and nothing else.
+    </details>
+    <div class="setrow" style="margin-top:6px;"><div class="lbl">Private repo</div><input id="cloudRepo" autocomplete="off" placeholder="owner/better-translator-backup"></div>
+    <div class="setrow"><div class="lbl">GitHub key (stays on this device)</div><input id="cloudToken" type="password" autocomplete="off" placeholder="github_pat_…"></div>
+    <div class="setrow"><div class="lbl">Backup passphrase — save it in your password manager. Lose it and NO ONE (me included) can open the backups.</div><input id="cloudPass" type="password" autocomplete="off" placeholder="8+ characters"></div>
+    <div class="setrow"><div class="lbl">This device's name</div><input id="cloudDevice" autocomplete="off" placeholder="iPhone"></div>
+    <div class="lbl">Automatic backup</div><div class="segbtns" id="cloudOnBtns" style="margin-bottom:8px;"><button data-o="on">on</button><button data-o="off">off</button></div>
+    <div id="cloudStatus" class="lbl" style="text-align:center;margin:6px 0;"></div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:6px;"><button class="btn" id="cloudNow" style="flex:none;padding:11px 16px;">⬆ Back up now</button><button class="btn" id="cloudRestore" style="flex:none;padding:11px 16px;">⬇ Restore from cloud…</button><button class="btn primary" id="cloudSave" style="flex:none;padding:11px 24px;">Save</button></div>
   </div></div>
 
   <div class="regsheet" id="voiceSheet"><div class="regcard">
@@ -378,7 +398,7 @@
   function voiceDesc(){ return store.voice||DEFAULT_VOICE; }
   // Built-in "guest" — for one-off strangers (train station, staff). Never listed, never gets a .md or memory.
   if(!store.people.guest) store.people.guest={name:'Someone', reg:'polite', lang:'ja', color:'#6E7B74', icon:'👤', desc:'someone I am talking to one-off (a stranger, staff, someone at the station) — polite, neutral, no shared history', memory:'', guest:true};
-  function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){} }
+  function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){} cloudDirty(); }
   save();
 
   var cur=null, register='keigo', activeSpeaker='me';
@@ -1283,14 +1303,20 @@
 
   // ===== Backup: export/import everything (people, conversations, memories, drafts) as one .json =====
   // API keys are deliberately NOT exported (a backup file shouldn't carry credentials). Audio history stays on-device (too big for JSON).
+  function backupPayload(){ var drafts={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('bt_draft')===0) drafts[k]=localStorage.getItem(k); } return {app:'better-translator', schema:'bt_state_v5', exportedAt:new Date().toISOString(), store:store, drafts:drafts}; }
+  function checkBackup(obj){ if(!obj||obj.app!=='better-translator'||!obj.store||!obj.store.people||!obj.store.convos) throw new Error('not a Better Translator backup'); return {convos:Object.keys(obj.store.convos).length, people:Object.keys(obj.store.people).length}; }
+  function applyBackup(obj){ localStorage.setItem(STORE_KEY, JSON.stringify(obj.store)); Object.keys(obj.drafts||{}).forEach(function(k){ if(k.indexOf('bt_draft')===0) localStorage.setItem(k,obj.drafts[k]); }); location.reload(); }
   document.getElementById('exportBtn').onclick=function(){
-    var drafts={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('bt_draft')===0) drafts[k]=localStorage.getItem(k); }
-    var obj={app:'better-translator', schema:'bt_state_v5', exportedAt:new Date().toISOString(), store:store, drafts:drafts};
+    var obj=backupPayload();
     var d=new Date(), name='better-translator-backup-'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'.json';
     var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(obj,null,1)],{type:'application/json'})); a.download=name; a.click(); setTimeout(function(){URL.revokeObjectURL(a.href);},4000);
     localStorage.setItem('bt_last_export',String(Date.now())); markLastExport();
   };
-  function markLastExport(){ var ts=+localStorage.getItem('bt_last_export')||0; var el=document.getElementById('lastExport'); if(!ts){ el.textContent='No backup yet — Export protects your chats & memories.'; return; } var days=Math.floor((Date.now()-ts)/86400000); el.textContent='Last backup: '+fmtDay(ts)+(days>7?' — over a week old, consider exporting':''); }
+  function markLastExport(){ var el=document.getElementById('lastExport');
+    var cl=+localStorage.getItem('bt_cloud_last')||0, cerr=localStorage.getItem('bt_cloud_err');
+    if(cloud.on && cloudConfigured()){ el.textContent = cerr ? '☁️ Cloud backup failing — open ☁️ Auto-backup' : ('☁️ Cloud backup on'+(cl?' · last '+ago(cl):' · first one pending')); el.style.color=cerr?'var(--amber-ink)':''; return; }
+    el.style.color='';
+    var ts=+localStorage.getItem('bt_last_export')||0; if(!ts){ el.textContent='No backup yet — turn on ☁️ Auto-backup, or Export.'; return; } var days=Math.floor((Date.now()-ts)/86400000); el.textContent='Last manual backup: '+fmtDay(ts)+(days>7?' — over a week old; ☁️ Auto-backup does this for you':''); }
   document.getElementById('importDataBtn').onclick=function(){ document.getElementById('importDataFile').click(); };
   document.getElementById('importDataFile').onchange=function(e){
     var f=e.target.files&&e.target.files[0]; if(!f)return; e.target.value='';
@@ -1298,16 +1324,115 @@
     r.onload=function(){
       try{
         var obj=JSON.parse(String(r.result));
-        if(!obj||obj.app!=='better-translator'||!obj.store||!obj.store.people||!obj.store.convos) throw new Error('not a Better Translator backup');
-        var nC=Object.keys(obj.store.convos).length, nP=Object.keys(obj.store.people).length;
-        if(!confirm('Restore backup from '+(obj.exportedAt||'?').slice(0,10)+' — '+nP+' people, '+nC+' conversations?\n\nThis REPLACES everything currently in the app.')) return;
-        localStorage.setItem(STORE_KEY, JSON.stringify(obj.store));
-        Object.keys(obj.drafts||{}).forEach(function(k){ if(k.indexOf('bt_draft')===0) localStorage.setItem(k,obj.drafts[k]); });
-        location.reload();
+        var n=checkBackup(obj);
+        if(!confirm('Restore backup from '+(obj.exportedAt||'?').slice(0,10)+' — '+n.people+' people, '+n.convos+' conversations?\n\nThis REPLACES everything currently in the app.')) return;
+        applyBackup(obj);
       }catch(err){ alert('Could not restore: '+(err.message||err)); }
     };
     r.readAsText(f);
   };
+
+  // ===== Automatic encrypted cloud backup → a private GitHub repo =====
+  // Encrypted ON-DEVICE (PBKDF2-SHA256 → AES-256-GCM) before upload: GitHub only ever holds ciphertext.
+  // Each device writes its OWN file, so a stale device can never overwrite a newer one; every upload is a commit,
+  // so older versions stay recoverable from the repo history. API keys are never included (backupPayload excludes them).
+  var cloudReady=false, cloudTimer=null, cloudBusy=false, cloudKeyCache=null, cloudOnDraft=false;
+  var cloud={ repo:localStorage.getItem('bt_cloud_repo')||'', token:localStorage.getItem('bt_cloud_token')||'', pass:localStorage.getItem('bt_cloud_pass')||'', device:localStorage.getItem('bt_cloud_device')||'', on:localStorage.getItem('bt_cloud_on')==='1' };
+  var PBKDF2_ITER=310000;
+  function deviceId(){ var id=localStorage.getItem('bt_device_id'); if(!id){ id=Math.random().toString(36).slice(2,8); localStorage.setItem('bt_device_id',id); } return id; }
+  function defaultDeviceName(){ var ua=navigator.userAgent; return /iPhone/.test(ua)?'iPhone':/iPad/.test(ua)?'iPad':/Android/.test(ua)?'Android':/Mac/.test(ua)?'Mac':'Device'; }
+  function cloudPath(){ var nm=(cloud.device||defaultDeviceName()).replace(/[^A-Za-z0-9_-]+/g,'-').slice(0,24)||'device'; return 'backups/'+nm+'-'+deviceId()+'.json'; }
+  function cloudConfigured(){ return !!(cloud.repo && cloud.token && cloud.pass && cloud.pass.length>=8); }
+  function u8ToB64(u8){ var s='', CH=0x8000; for(var i=0;i<u8.length;i+=CH) s+=String.fromCharCode.apply(null,u8.subarray(i,i+CH)); return btoa(s); }
+  function b64ToU8(b64){ var s=atob(b64), u=new Uint8Array(s.length); for(var i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+  function deriveKey(pass,saltU8,iter){ return crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']).then(function(base){ return crypto.subtle.deriveKey({name:'PBKDF2',salt:saltU8,iterations:iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']); }); }
+  function deviceSalt(){ var s=localStorage.getItem('bt_cloud_salt'); if(!s){ s=u8ToB64(crypto.getRandomValues(new Uint8Array(16))); localStorage.setItem('bt_cloud_salt',s); } return s; }
+  function encKey(){ var salt=deviceSalt(), k=cloud.pass+'|'+salt; if(cloudKeyCache&&cloudKeyCache.k===k) return Promise.resolve(cloudKeyCache); return deriveKey(cloud.pass,b64ToU8(salt),PBKDF2_ITER).then(function(key){ cloudKeyCache={k:k,key:key,salt:salt}; return cloudKeyCache; }); }
+  function encryptPayload(obj){ return encKey().then(function(kc){ var iv=crypto.getRandomValues(new Uint8Array(12)); return crypto.subtle.encrypt({name:'AES-GCM',iv:iv},kc.key,new TextEncoder().encode(JSON.stringify(obj))).then(function(ct){ return {app:'better-translator-backup', v:1, device:cloud.device||defaultDeviceName(), savedAt:new Date().toISOString(), kdf:{alg:'PBKDF2-SHA256',iter:PBKDF2_ITER,salt:kc.salt}, cipher:'AES-256-GCM', iv:u8ToB64(iv), ct:u8ToB64(new Uint8Array(ct))}; }); }); }
+  function decryptEnvelope(env,pass){
+    if(!env||env.app!=='better-translator-backup'||!env.ct||!env.kdf) return Promise.reject(new Error('not a Better Translator cloud backup'));
+    return deriveKey(pass,b64ToU8(env.kdf.salt),env.kdf.iter||PBKDF2_ITER).then(function(key){ return crypto.subtle.decrypt({name:'AES-GCM',iv:b64ToU8(env.iv)},key,b64ToU8(env.ct)); })
+      .then(function(pt){ return JSON.parse(new TextDecoder().decode(pt)); }, function(){ throw new Error('wrong passphrase (or the backup was altered) — nothing was changed'); });
+  }
+  function ghErr(st,e){ if(st===401) return 'GitHub key rejected (expired or mistyped)'; if(st===403) return 'GitHub key lacks permission for that repo (needs Contents: read & write)'; if(st===404) return 'repo not found — check the name, and that the key was given access to it'; return (e&&e.message)||('GitHub HTTP '+st); }
+  function gh(method,path,body,accept,cf){ cf=cf||cloud;
+    return fetchT('https://api.github.com/repos/'+cf.repo+'/contents/'+path,{method:method,headers:{'Authorization':'Bearer '+cf.token,'Accept':accept||'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},body:body?JSON.stringify(body):undefined},30000)
+      .then(function(r){ if(r.status===404 && method==='GET') return null; if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){ var err=new Error(ghErr(r.status,e)); err.status=r.status; throw err; }); return (accept&&/raw/.test(accept))?r.text():r.json(); });
+  }
+  function sha256Hex(str){ return crypto.subtle.digest('SHA-256',new TextEncoder().encode(str)).then(function(b){ return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,'0');}).join(''); }); }
+  function cloudBackup(force){
+    if(!cloudConfigured()) return Promise.reject(new Error('set up the repo, key and passphrase first'));
+    if(cloudBusy) return Promise.resolve('busy');
+    cloudBusy=true; setCloudStatus('backing up…');
+    var payload=backupPayload(), path=cloudPath();
+    return sha256Hex(JSON.stringify({s:payload.store,d:payload.drafts,p:path})).then(function(hash){
+      if(!force && hash===localStorage.getItem('bt_cloud_hash')) return 'unchanged';   // nothing new since the last upload — no commit
+      return encryptPayload(payload).then(function(env){
+        function put(sha){ var b={message:'backup · '+(cloud.device||defaultDeviceName())+' · '+env.savedAt, content:u8ToB64(new TextEncoder().encode(JSON.stringify(env)))}; if(sha) b.sha=sha; return gh('PUT',path,b); }
+        return put(localStorage.getItem('bt_cloud_sha:'+path)||'').catch(function(e){
+          if(e.status!==409 && e.status!==422) throw e;                       // our remembered version is stale/missing → fetch the current one, retry once
+          return gh('GET',path).then(function(meta){ return put(meta&&meta.sha); });
+        }).then(function(res){ localStorage.setItem('bt_cloud_sha:'+path,res.content.sha); localStorage.setItem('bt_cloud_hash',hash); return 'ok'; });
+      });
+    }).then(function(st){ localStorage.setItem('bt_cloud_last',String(Date.now())); localStorage.removeItem('bt_cloud_err'); localStorage.removeItem('bt_cloud_err_since'); cloudBusy=false; setCloudStatus(); updateCloudBanner(); return st; },
+      function(e){ localStorage.setItem('bt_cloud_err',String(e.message||e)); if(!localStorage.getItem('bt_cloud_err_since')) localStorage.setItem('bt_cloud_err_since',String(Date.now())); cloudBusy=false; setCloudStatus(); updateCloudBanner(); throw e; });
+  }
+  function cloudDirty(){ if(!cloudReady||!cloud.on||!cloudConfigured()) return; clearTimeout(cloudTimer); cloudTimer=setTimeout(function(){ cloudTimer=null; cloudBackup(false).catch(function(){}); },45000); }
+  // leaving the app with a change still pending → upload now rather than wait out the timer
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='hidden' && cloudTimer){ clearTimeout(cloudTimer); cloudTimer=null; cloudBackup(false).catch(function(){}); } });
+  function ago(ts){ var s=Math.round((Date.now()-ts)/1000); if(s<60) return 'just now'; if(s<3600) return Math.round(s/60)+' min ago'; if(s<86400) return Math.round(s/3600)+' h ago'; return fmtDay(ts); }
+  function setCloudStatus(msg){ var el=document.getElementById('cloudStatus'); if(!el) return; el.style.color=''; if(msg){ el.textContent=msg; return; } var last=+localStorage.getItem('bt_cloud_last')||0, err=localStorage.getItem('bt_cloud_err');
+    if(err){ el.textContent='⚠ last attempt failed: '+err; el.style.color='var(--amber-ink)'; return; }
+    el.textContent = !cloudConfigured() ? 'not set up yet' : !cloud.on ? 'automatic backup is OFF'+(last?' · last: '+ago(last):'') : (last ? '✓ backed up '+ago(last)+' · '+cloudPath().replace('backups/','') : 'on — first backup pending'); }
+  function updateCloudBanner(){ var b=document.getElementById('cloudBanner'), err=localStorage.getItem('bt_cloud_err'), since=+localStorage.getItem('bt_cloud_err_since')||0;
+    var show=cloud.on && cloudConfigured() && err && since && (Date.now()-since>6*3600000);   // brief offline blips stay quiet; a real outage surfaces
+    b.style.display=show?'':'none'; if(show) b.textContent='☁️ Cloud backup has been failing since '+fmtDay(since)+' — '+err+'. Tap to fix.'; }
+  var cloudSheet=document.getElementById('cloudSheet');
+  function markCloudOn(){ document.querySelectorAll('#cloudOnBtns button').forEach(function(x){ x.classList.toggle('on',(x.dataset.o==='on')===cloudOnDraft); }); }
+  document.querySelectorAll('#cloudOnBtns button').forEach(function(x){ x.onclick=function(){ cloudOnDraft=x.dataset.o==='on'; markCloudOn(); }; });
+  // the form is read into a SEPARATE object — the live config only changes on Save / Back up now / a restore that succeeded,
+  // so a mistyped restore passphrase can never become the key future backups are locked with
+  function formCloud(){ return { repo:document.getElementById('cloudRepo').value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\/+$/,''), token:document.getElementById('cloudToken').value.trim(), pass:document.getElementById('cloudPass').value, device:document.getElementById('cloudDevice').value.trim()||defaultDeviceName(), on:cloudOnDraft }; }
+  function readCloudForm(){ var f=formCloud(); Object.keys(f).forEach(function(k){ cloud[k]=f[k]; }); }
+  function saveCloud(){ localStorage.setItem('bt_cloud_repo',cloud.repo); localStorage.setItem('bt_cloud_token',cloud.token); localStorage.setItem('bt_cloud_pass',cloud.pass); localStorage.setItem('bt_cloud_device',cloud.device); localStorage.setItem('bt_cloud_on',cloud.on?'1':'0'); cloudKeyCache=null; }
+  function cloudFormProblem(needPass,f){ f=f||cloud; if(!/^[\w.-]+\/[\w.-]+$/.test(f.repo)) return 'Repo should look like owner/name.'; if(!f.token) return 'Paste the GitHub key.'; if(needPass && (f.pass||'').length<8) return 'Passphrase needs 8+ characters.'; return ''; }
+  document.getElementById('cloudBtn').onclick=function(){
+    setSheet.classList.remove('on');
+    document.getElementById('cloudRepo').value=cloud.repo||'indigo166/better-translator-backup';
+    document.getElementById('cloudToken').value=cloud.token; document.getElementById('cloudPass').value=cloud.pass;
+    document.getElementById('cloudDevice').value=cloud.device||defaultDeviceName();
+    cloudOnDraft = cloudConfigured() ? cloud.on : true; markCloudOn(); setCloudStatus(); cloudSheet.classList.add('on');
+  };
+  document.getElementById('cloudSave').onclick=function(){ readCloudForm(); var bad=cloudFormProblem(true); if(bad){ setCloudStatus('⚠ '+bad); return; } saveCloud();
+    if(!cloud.on){ setCloudStatus(); return; }
+    cloudBackup(true).then(function(){ toast('☁️ Backed up — automatic from now on'); }).catch(function(){}); };
+  document.getElementById('cloudNow').onclick=function(){ readCloudForm(); var bad=cloudFormProblem(true); if(bad){ setCloudStatus('⚠ '+bad); return; } saveCloud(); cloudBackup(true).then(function(){ toast('☁️ Backed up'); }).catch(function(){}); };
+  document.getElementById('cloudRestore').onclick=function(){
+    var f=formCloud(); var bad=cloudFormProblem(false,f); if(bad){ setCloudStatus('⚠ '+bad); return; } if(!f.pass){ setCloudStatus('⚠ Enter the backup passphrase — it unlocks the backup.'); return; }
+    var pass=f.pass; cloudSheet.classList.remove('on');
+    var body=openList('⬇ Restore from cloud','Pick a backup. Restoring REPLACES everything on this device.');
+    body.innerHTML='<div class="spinner"></div>';
+    gh('GET','backups',null,null,f).then(function(list){
+      var files=(list||[]).filter(function(f){ return /\.json$/.test(f.name); });
+      if(!files.length){ body.innerHTML='<div class="lbl">No backups found in '+esc(cloud.repo)+' yet.</div>'; return; }
+      return Promise.all(files.map(function(file){ return gh('GET',file.path,null,'application/vnd.github.raw',f).then(function(txt){ try{ return {f:file,env:JSON.parse(txt)}; }catch(e){ return null; } }).catch(function(){ return null; }); })).then(function(rows){
+        rows=rows.filter(Boolean).sort(function(a,b){ return String(b.env.savedAt).localeCompare(String(a.env.savedAt)); });
+        body.innerHTML='';
+        rows.forEach(function(r){ var t=Date.parse(r.env.savedAt); var d=document.createElement('div'); d.className='menuitem';
+          d.textContent=(r.env.device||r.f.name)+(r.f.path===cloudPath()?' (this device)':'')+' — saved '+fmtWhen(t)+(sameDay(t,Date.now())?'':' '+fmtTime(t));
+          d.onclick=function(){ d.textContent='unlocking…';
+            decryptEnvelope(r.env,pass).then(function(obj){ var n=checkBackup(obj);
+              if(!confirm('Restore "'+(r.env.device||'backup')+'" from '+new Date(t).toLocaleString()+' — '+n.people+' people, '+n.convos+' conversations?\n\nThis REPLACES everything on this device.')){ listSheet.classList.remove('on'); return; }
+              Object.keys(f).forEach(function(k){ cloud[k]=f[k]; }); saveCloud(); localStorage.removeItem('bt_cloud_hash'); applyBackup(obj);   // passphrase proven correct → now it becomes the live one
+            }).catch(function(e){ d.textContent='⚠ '+(e.message||e); }); };
+          body.appendChild(d); });
+      });
+    }).catch(function(e){ body.innerHTML='<div class="lbl">⚠ '+esc(e.message||String(e))+'</div>'; });
+  };
+  document.getElementById('cloudBanner').onclick=function(){ document.getElementById('cloudBtn').click(); };
+  cloudReady=true; updateCloudBanner();
+  // opened after a long gap → catch up now
+  if(cloud.on && cloudConfigured() && (Date.now()-(+localStorage.getItem('bt_cloud_last')||0))>6*3600000) setTimeout(function(){ cloudBackup(false).catch(function(){}); },5000);
 
   updateAiBadge(); renderChats();
   // ask the browser to protect this origin's storage from eviction (chats + memories live here)
