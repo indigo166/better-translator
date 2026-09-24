@@ -172,7 +172,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send micbtn" id="quickMic" title="Tap to talk">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v31 · saved on this device · tap to refresh</div>
+    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v32 · saved on this device · tap to refresh</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -216,6 +216,8 @@
     <div class="setrow" style="margin-top:10px;"><div class="lbl">API key — stays on this device only</div><input id="setKey" type="password" placeholder="paste your key…" autocomplete="off"></div>
     <div class="setrow"><div class="lbl">Model</div><input id="setModel" autocomplete="off"></div>
     <div class="setrow"><div class="lbl">OpenAI key (optional — Whisper dictation, the same engine as ChatGPT's mic)</div><input id="setOaKey" type="password" placeholder="sk-… (blank = dictate via Gemini)" autocomplete="off"></div>
+    <div class="lbl">Dictation (🎤)</div><div class="segbtns" id="dictBtns" style="margin-bottom:4px;"><button data-d="live">Live — instant</button><button data-d="ai">AI — record, then write</button></div>
+    <div class="lbl" id="dictNote" style="margin-bottom:10px;"></div>
     <div class="lbl">Furigana (readings above kanji)</div><div class="segbtns" id="furiBtns" style="margin-bottom:10px;"><button data-f="on">on ・振り仮名</button><button data-f="off">off</button></div>
     <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:8px;">No key = demo mode. Dictation records real audio and transcribes with Whisper (if OpenAI key) or Gemini — every recording is saved first, so nothing is lost to a network error. Wispr Flow / system dictation also works: focus any text box and dictate.</div>
     <div style="text-align:center;margin-bottom:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="chip" id="voiceBtn" style="background:var(--acc);color:#fff;">🗣 My voice</button><button class="chip" id="cloudBtn" style="background:var(--acc);color:#fff;">☁️ Auto-backup</button><button class="chip" id="dictHistBtn" style="background:var(--wb);color:var(--muted);">🎙 Dictation history</button><button class="chip" id="exportBtn" style="background:var(--wb);color:var(--muted);">⬇ Export data</button><button class="chip" id="importDataBtn" style="background:var(--wb);color:var(--muted);">⬆ Restore backup</button></div>
@@ -693,7 +695,7 @@
   // composer
   function autoresize(){ input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,110)+'px'; }
   input.addEventListener('input',function(){ autoresize(); send.disabled=input.value.trim()===''; if(cur){ if(input.value) localStorage.setItem('bt_draft_'+cur, input.value); else localStorage.removeItem('bt_draft_'+cur); } });
-  document.getElementById('micBtn').onclick=function(){ recordToggle(input, document.getElementById('micBtn')); };
+  document.getElementById('micBtn').onclick=function(){ recordToggle(input, document.getElementById('micBtn'), curSrc()==='ja'?'ja-JP':'en-US'); };
   input.addEventListener('keydown',function(e){ if(e.key!=='Enter'||e.shiftKey)return; e.preventDefault(); if(scrim.classList.contains('on')){document.getElementById('sendIt').click();return;} if(!send.disabled) openReview(); });
   document.addEventListener('keydown',function(e){ if(e.key!=='Enter'||e.shiftKey)return; if(!scrim.classList.contains('on'))return; if(/INPUT|TEXTAREA/.test(e.target.tagName))return; e.preventDefault(); document.getElementById('sendIt').click(); });
   // Suggestion chips — read the ACTUAL conversation and propose what the current speaker might say next
@@ -918,15 +920,17 @@
         function bodyFor(m){ return {contents:[{parts:[{text:'Transcribe this audio recording verbatim in its original language (English or Japanese). Return ONLY the transcript text — no labels, no commentary. If nothing intelligible was said, return an empty string.'},{inline_data:{mime_type:m,data:b64}}]}],generationConfig:{maxOutputTokens:2048}}; }
         var body=bodyFor(mime);
         function tryModels(models,lastErr){ if(!models.length) return Promise.reject(lastErr||new Error('no Gemini model transcribed'));
-          return fetchT('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(models[0])+':generateContent?key='+encodeURIComponent(cfg.key),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},45000)
+          return fetchT('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(models[0])+':generateContent?key='+encodeURIComponent(cfg.key),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)},20000)
             .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('HTTP '+r.status));}); return r.json(); })
             .then(function(d){ if(!d.candidates||!d.candidates[0].content||!d.candidates[0].content.parts) throw new Error('empty response'); return String(d.candidates[0].content.parts[0].text||'').trim(); })
             .catch(function(e){ if(/api key|permission|unauthoriz|billing|mime/i.test(e.message||'')) throw e; return tryModels(models.slice(1),e); });
         }
         // iPhone audio: if Gemini refuses the mp4 label, the same AAC audio is retried under the audio/aac label
-        return tryModels(geminiModelChain()).catch(function(e){
+        // transcription wants speed, not depth: the lite model first (no slow 'thinking' pass), then the usual chain
+        var tChain=['gemini-flash-lite-latest'].concat(geminiModelChain()).filter(function(m,i,l){ return m && l.indexOf(m)===i; });
+        return tryModels(tChain).catch(function(e){
           if(!/mime|unsupported|invalid argument/i.test(e.message||'') || !/mp4|m4a/.test(mime)) throw e;
-          body=bodyFor('audio/aac'); return tryModels(geminiModelChain());
+          body=bodyFor('audio/aac'); return tryModels(tChain);
         });
       });
     }
@@ -970,18 +974,43 @@
     if(btn._label===undefined) btn._label=btn.textContent;
     if(f && f._ph===undefined) f._ph=f.placeholder;
     btn.classList.toggle('rec',state==='rec');
+    clearInterval(rec.tick); rec.tick=null;
+    if(state==='busy' && f){ var t0=Date.now(), jaMsg=uiLang()==='ja'; rec.tick=setInterval(function(){ f.placeholder=(jaMsg?'文字にしています… ':'Writing down what you said… ')+Math.round((Date.now()-t0)/1000)+'s'; },1000); }
     if(state==='rec'){ btn.textContent='■'; btn.style.background='#B4413E'; btn.style.color='#fff'; if(f) f.placeholder=(uiLang()==='ja'?'聞いています… ■ をタップで停止':'Listening… tap ■ to stop'); }
     else if(state==='busy'){ btn.textContent='…'; btn.style.background=''; btn.style.color=''; if(f) f.placeholder=(uiLang()==='ja'?'文字にしています…':'Writing down what you said…'); }
     else { btn.textContent=btn._label; btn.style.background=''; btn.style.color=''; if(f && f._ph!==undefined){ f.placeholder=f._ph; delete f._ph; } } }
-  function recordToggle(into,btn){
-    // say it BEFORE recording, not after a wasted recording: dictation needs an OpenAI key or a Gemini key on this device
-    if(!rec.live && !rec.busy && !cfg.oaKey && !(cfg.provider==='gemini' && cfg.key)){
-      alert(cfg.provider==='claude' ? 'The 🎤 needs a Gemini or OpenAI key (a Claude key can\'t transcribe audio). Add one in ⚙.' : 'The 🎤 needs a free Gemini key on this device. Tap ⚙, paste your key, then try again.');
+  // LIVE dictation: the device's own speech recognizer (Apple's on iPhone — the keyboard-mic engine) puts words in the
+  // box WHILE you talk, needs no API key, and finishes instantly. Falls back to AI dictation where it isn't available
+  // (e.g. Vivaldi/Brave, which ship without a speech service) and remembers that for this device.
+  var SRc=window.SpeechRecognition||window.webkitSpeechRecognition;
+  function useLive(){ return !!SRc && (localStorage.getItem('bt_dict')||'live')==='live' && !localStorage.getItem('bt_sr_off'); }
+  function liveDictate(into,btn,lang){
+    var r=new SRc(), base=into.value?into.value.replace(/\s*$/,' '):'', got=false, hardErr=null;
+    r.lang=lang; r.interimResults=true; r.continuous=true; r.maxAlternatives=1;
+    rec.sr=r; rec.live=true; btnRecState(btn,'rec');
+    r.onresult=function(ev){
+      // rebuild from ALL results each time (never accumulate) — iOS can re-deliver earlier results, which would duplicate words
+      var fin='', inter=''; for(var i=0;i<ev.results.length;i++){ var t=ev.results[i][0].transcript; if(ev.results[i].isFinal) fin+=t; else inter+=t; }
+      if(fin||inter){ got=true; into.value=base+fin+inter; into.dispatchEvent(new Event('input')); }
+    };
+    r.onerror=function(ev){ if(ev.error!=='no-speech' && ev.error!=='aborted') hardErr=ev.error; };
+    r.onend=function(){ rec.sr=null; rec.live=false; btnRecState(btn,'');
+      if(got){ into.value=into.value.replace(/\s+$/,''); into.dispatchEvent(new Event('input')); into.focus(); return; }
+      if(hardErr==='not-allowed'){ alert('The microphone or speech recognition is blocked. On iPhone: Settings → Privacy & Security → Microphone and Speech Recognition, and make sure Siri & Dictation is on.'); return; }
+      if(hardErr){ localStorage.setItem('bt_sr_off','1'); toast('Live dictation isn\'t available here — switched to AI dictation. Tap 🎤 again.'); }
+    };
+    try{ r.start(); }catch(e){ rec.sr=null; rec.live=false; btnRecState(btn,''); localStorage.setItem('bt_sr_off','1'); toast('Live dictation isn\'t available here — switched to AI dictation. Tap 🎤 again.'); }
+  }
+  function recordToggle(into,btn,lang){
+    if(rec.live){ if(rec.sr){ try{rec.sr.stop();}catch(e){} } else { try{rec.mr.stop();}catch(e){} } return; }
+    if(rec.busy) return;
+    rec.into=into;
+    if(useLive()){ liveDictate(into,btn,lang||'en-US'); return; }
+    // AI dictation: say it BEFORE recording, not after a wasted recording — it needs an OpenAI key or a Gemini key on this device
+    if(!cfg.oaKey && !(cfg.provider==='gemini' && cfg.key)){
+      alert(cfg.provider==='claude' ? 'AI dictation needs a Gemini or OpenAI key (a Claude key can\'t transcribe audio). Add one in ⚙ — or switch ⚙ → Dictation to Live.' : 'AI dictation needs a free Gemini key on this device. Tap ⚙, paste your key, then try again.');
       return;
     }
-    if(!rec.live && !rec.busy) rec.into=into;
-    if(rec.live){ try{rec.mr.stop();}catch(e){} return; }
-    if(rec.busy) return;
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ alert('This browser blocks microphone recording here. Wispr Flow / system dictation still works — focus the box and dictate.'); return; }
     navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
       rec.mr=new MediaRecorder(stream); rec.chunks=[]; rec.live=true; btnRecState(btn,'rec');
@@ -1024,7 +1053,7 @@
       });
     }).catch(function(e){ body.innerHTML='<div class="lbl">Could not open the audio store: '+esc(e.message||String(e))+'</div>'; });
   };
-  document.getElementById('quickMic').onclick=function(){ recordToggle(quickInput, document.getElementById('quickMic')); };
+  document.getElementById('quickMic').onclick=function(){ recordToggle(quickInput, document.getElementById('quickMic'), 'en-US'); };
 
   // in-person mode — turn-based interpreter (PRD §17.1)
   var talkSheet=document.getElementById('talkSheet'), talkSide='me';
@@ -1043,7 +1072,7 @@
   document.getElementById('menuTalk').onclick=function(){ menuSheet.classList.remove('on'); openTalk(); };
   document.getElementById('quickTalk').onclick=function(){ newSheet.classList.remove('on'); startQuick(''); openTalk(); };
   document.getElementById('talkClose').onclick=function(){ talkSheet.classList.remove('on'); renderThread(true); renderSuggs(); };
-  document.getElementById('talkMic').onclick=function(){ recordToggle(document.getElementById('talkInput'), document.getElementById('talkMic')); };
+  document.getElementById('talkMic').onclick=function(){ recordToggle(document.getElementById('talkInput'), document.getElementById('talkMic'), talkSide==='me'?'en-US':(talkOther().lang==='ja'?'ja-JP':'en-US')); };
   // typing again after a result = starting the next attempt — bring the compose buttons back
   document.getElementById('talkInput').addEventListener('input',function(){ if(document.getElementById('talkCompose').style.display==='none') talkClear(); var v=document.getElementById('talkInput').value; if(cur){ if(v) localStorage.setItem('bt_draft_talk_'+cur,v); else localStorage.removeItem('bt_draft_talk_'+cur); } });
   document.getElementById('talkGo').onclick=function(){
@@ -1334,7 +1363,14 @@
   function markProv(){ document.querySelectorAll('#provbtns button').forEach(function(x){x.classList.toggle('on',x.dataset.p===cfg.provider);}); }
   function updateAiBadge(){ document.getElementById('setBtn').textContent=liveOn()?'⚙ AI: live':'⚙ AI: demo'; document.getElementById('demoBanner').style.display=liveOn()?'none':''; }
   document.getElementById('demoBanner').onclick=function(){ document.getElementById('setBtn').click(); };
-  document.getElementById('setBtn').onclick=function(){ markProv(); markFuri(); markLastExport(); setKey.value=cfg.key; setModel.value=cfg.model||defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); document.getElementById('setOaKey').value=cfg.oaKey; setSheet.classList.add('on'); };
+  function markDict(){ var d=localStorage.getItem('bt_dict')||'live', off=!!localStorage.getItem('bt_sr_off');
+    document.querySelectorAll('#dictBtns button').forEach(function(x){ x.classList.toggle('on',x.dataset.d===d); });
+    document.getElementById('dictNote').textContent = d==='ai' ? 'Records your voice, then Gemini/Whisper writes it (slower, saved to Dictation history).'
+      : !SRc ? 'This browser has no live speech engine — the 🎤 uses AI dictation here.'
+      : off ? 'Live dictation failed on this device, so the 🎤 is using AI dictation. Tap "Live" to try again.'
+      : 'Words appear as you talk, using this device\'s own speech engine. No key needed.'; }
+  document.querySelectorAll('#dictBtns button').forEach(function(x){ x.onclick=function(){ localStorage.setItem('bt_dict',x.dataset.d); if(x.dataset.d==='live') localStorage.removeItem('bt_sr_off'); markDict(); }; });
+  document.getElementById('setBtn').onclick=function(){ markProv(); markFuri(); markLastExport(); markDict(); setKey.value=cfg.key; setModel.value=cfg.model||defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); document.getElementById('setOaKey').value=cfg.oaKey; setSheet.classList.add('on'); };
   document.querySelectorAll('#provbtns button').forEach(function(x){ x.onclick=function(){ cfg.provider=x.dataset.p; markProv(); setModel.value=defModel(cfg.provider); setModel.placeholder=defModel(cfg.provider); }; });
   document.getElementById('setDone').onclick=function(){ cfg.key=setKey.value.trim(); cfg.model=setModel.value.trim(); cfg.oaKey=document.getElementById('setOaKey').value.trim(); localStorage.setItem('bt_provider',cfg.provider); localStorage.setItem('bt_key',cfg.key); localStorage.setItem('bt_model',cfg.model); localStorage.setItem('bt_oakey',cfg.oaKey); updateAiBadge(); setSheet.classList.remove('on'); };
   document.getElementById('resetData').onclick=function(){ if(!confirm('Reset all conversations and people to seed data?'))return; var kill=['bt_state_v5','bt_state_v4','bt_state_v3','bt_state_v2']; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(k&&k.indexOf('bt_draft')===0) kill.push(k); } kill.forEach(function(k){localStorage.removeItem(k);}); location.reload(); };
