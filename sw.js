@@ -1,5 +1,5 @@
 // Better Translator PWA service worker — network-first (always get the newest prototype), cache fallback (works offline).
-var CACHE = 'bt-v30';
+var CACHE = 'bt-v31';
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-maskable.svg', './apple-touch-icon.png', './icon-192.png', './icon-512.png']); }));
   self.skipWaiting();
@@ -10,8 +10,10 @@ self.addEventListener('activate', function (e) {
 self.addEventListener('fetch', function (e) {
   var u = new URL(e.request.url);
   if (u.origin !== location.origin || e.request.method !== 'GET') return;   // API calls (Gemini/OpenAI/Anthropic) pass straight through
+  // cache:'no-store' skips the browser's HTTP cache — GitHub Pages sends max-age=600, so a plain fetch could hand an
+  // installed iPhone app a 10-minute-old copy. (Fetch by URL: a navigation Request can't be re-wrapped with options.)
   e.respondWith(
-    fetch(e.request).then(function (r) {
+    fetch(u.href, { cache: 'no-store', credentials: 'same-origin' }).then(function (r) {
       var cp = r.clone(); caches.open(CACHE).then(function (c) { c.put(e.request, cp); });
       return r;
     }).catch(function () {

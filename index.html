@@ -113,7 +113,8 @@
   .regsheet{position:absolute; inset:0; background:rgba(0,0,0,.32); display:none; align-items:flex-end; z-index:25;}
   .regsheet.on{display:flex;}
   #talkSheet{background:rgba(0,0,0,.04);}  /* in-person: keep the conversation readable behind the panel */
-  .regcard{width:100%; background:var(--paper); border-radius:20px 20px 0 0; padding:16px; box-shadow:var(--shadow); max-height:90%; overflow-y:auto;}
+  .regcard{width:100%; background:var(--paper); border-radius:20px 20px 0 0; padding:44px 16px 16px; box-shadow:var(--shadow); max-height:90%; overflow-y:auto; position:relative;}
+  .sheetX{position:absolute; top:10px; right:12px; width:32px; height:32px; border-radius:50%; border:none; background:var(--wb); color:var(--muted); font-size:15px; cursor:pointer; z-index:2;}
   .segbtns{display:flex; border:0.5px solid var(--line); border-radius:12px; overflow:hidden; margin:8px 0 4px;}
   .segbtns button{flex:1; padding:11px 0; font-size:13px; border:none; background:var(--card); color:var(--muted); cursor:pointer;}
   .segbtns button.on{background:var(--acc); color:#fff; font-weight:600;}
@@ -171,7 +172,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send micbtn" id="quickMic" title="Tap to talk">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v30 · saved on this device</div>
+    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v31 · saved on this device · tap to refresh</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -508,13 +509,20 @@
     if(selMode){ var cb=document.createElement('div'); cb.style.cssText='width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;'+(selSet[k]?'background:var(--acc);border-color:var(--acc);':''); cb.textContent=selSet[k]?'✓':''; row.insertBefore(cb,row.firstChild); }
     // long-press → multi-select mode (delete / merge / archive several chats at once)
     var lp=null, lpFired=false;
-    row.onpointerdown=function(){ lpFired=false; lp=setTimeout(function(){ lpFired=true; selMode=true; selSet[k]=true; updateSelBar(); renderChats(); },550); };
-    row.onpointerup=row.onpointerleave=function(){ if(lp){clearTimeout(lp);lp=null;} };
+    // a slow scroll on a phone looks like a long-press — any finger movement or scroll cancels it
+    var px=0, py=0;
+    row.onpointerdown=function(e){ lpFired=false; px=e.clientX; py=e.clientY; lp=setTimeout(function(){ lpFired=true; selMode=true; selSet[k]=true; updateSelBar(); renderChats(); },550); };
+    row.onpointermove=function(e){ if(lp && (Math.abs(e.clientX-px)>8 || Math.abs(e.clientY-py)>8)){ clearTimeout(lp); lp=null; } };
+    row.onpointerup=row.onpointerleave=row.onpointercancel=function(){ if(lp){clearTimeout(lp);lp=null;} };
     row.onclick=function(){ if(lpFired){ lpFired=false; return; } if(selMode){ selSet[k]=!selSet[k]; updateSelBar(); renderChats(); return; } openConvo(k); }; return row;
   }
   var selMode=false, selSet={};
   function exitSel(){ selMode=false; selSet={}; updateSelBar(); renderChats(); }
-  function updateSelBar(){ var n=Object.keys(selSet).filter(function(k){return selSet[k];}).length; document.getElementById('selBar').style.display=selMode?'flex':'none'; document.getElementById('selCount').textContent=n+' selected'; }
+  function updateSelBar(){ var n=Object.keys(selSet).filter(function(k){return selSet[k];}).length;
+    if(selMode && n===0){ selMode=false; selSet={}; }   // deselecting the last chat leaves selection mode — no orphaned action bar
+    document.getElementById('selBar').style.display=selMode?'flex':'none';
+    document.getElementById('fab').style.display=selMode?'none':'';   // the ＋ sat right beside "cancel" — hide it while selecting
+    document.getElementById('selCount').textContent=n+' selected'; }
   document.getElementById('selCancel').onclick=exitSel;
   document.getElementById('selArchive').onclick=function(){ Object.keys(selSet).forEach(function(k){ if(selSet[k]&&store.convos[k]) store.convos[k].archived=true; }); save(); exitSel(); };
   document.getElementById('selDelete').onclick=function(){ var ks=Object.keys(selSet).filter(function(k){return selSet[k]&&store.convos[k];}); if(!ks.length)return; if(!confirm('Delete '+ks.length+' conversation'+(ks.length>1?'s':'')+' and their messages? (People are kept.)'))return; ks.forEach(function(k){ delete store.convos[k]; }); save(); exitSel(); };
@@ -1526,11 +1534,31 @@
       }
     }catch(err){ toast('Import link was unreadable: '+(err.message||err)); }
   }
+  // Refresh inside the installed app (a Home Screen app has no browser reload button). Re-adding the app to the Home
+  // Screen instead creates a NEW app with its own EMPTY storage on iPhone — so refreshing in place must always be easy.
+  // every sheet can be left without saving: a ✕ in the corner, a tap on the dimmed backdrop, or Esc
+  document.querySelectorAll('.regsheet').forEach(function(sh){ if(sh.id==='talkSheet') return;   // in-person has its own Close; a stray tap on the chat shouldn't end it
+    var card=sh.querySelector('.regcard'); if(!card) return;
+    var x=document.createElement('button'); x.className='sheetX'; x.type='button'; x.textContent='✕'; x.setAttribute('aria-label','Close');
+    x.onclick=function(){ sh.classList.remove('on'); }; card.insertBefore(x,card.firstChild);
+    sh.addEventListener('click',function(e){ if(e.target===sh) sh.classList.remove('on'); });
+  });
+  document.addEventListener('keydown',function(e){ if(e.key!=='Escape') return; var open=[].slice.call(document.querySelectorAll('.regsheet.on')).filter(function(s){return s.id!=='talkSheet';}); if(open.length) open[open.length-1].classList.remove('on'); });
+  document.getElementById('verFooter').onclick=function(){ this.textContent='↻ refreshing…'; location.reload(); };
+  (function(){ var box=document.getElementById('rows'), y0=null, dist=0, tip=null;
+    function clearTip(){ if(tip){ tip.remove(); tip=null; } }
+    box.addEventListener('touchstart',function(e){ y0=(box.scrollTop<=0 && !selMode)?e.touches[0].clientY:null; dist=0; },{passive:true});
+    box.addEventListener('touchmove',function(e){ if(y0===null) return; dist=e.touches[0].clientY-y0;
+      if(dist>12){ if(!tip){ tip=document.createElement('div'); tip.style.cssText='text-align:center;font-size:12px;color:var(--acc-ink);padding:8px;'; box.insertBefore(tip,box.firstChild); } tip.textContent = dist>90 ? '↻ let go to refresh' : '↓ pull to refresh'; } },{passive:true});
+    box.addEventListener('touchend',function(){ if(y0!==null && dist>90){ if(tip) tip.textContent='↻ refreshing…'; location.reload(); } else clearTip(); y0=null; dist=0; });
+  })();
   // ask the browser to protect this origin's storage from eviction (chats + memories live here)
   if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){});
   // PWA: register the service worker (http/https only — file:// can't; localhost works). Makes it installable + offline-capable.
   if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
-    navigator.serviceWorker.register('sw.js').then(function(reg){
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
+      // iPhone keeps a Home Screen app alive in the background, so "reopening" often isn't a reload — check for a new version every time it comes back
+      document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') reg.update().catch(function(){}); });
       reg.addEventListener('updatefound',function(){ var nw=reg.installing; if(!nw) return; nw.addEventListener('statechange',function(){
         if(nw.state==='activated' && navigator.serviceWorker.controller){
           var tst=document.createElement('div'); tst.style.cssText='position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--acc);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;z-index:100;cursor:pointer;box-shadow:var(--shadow);white-space:nowrap;';
