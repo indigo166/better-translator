@@ -129,6 +129,9 @@
   .tb-mic{flex:1; min-width:0; padding:14px 8px; font-size:16px; font-weight:600; border-radius:18px; border:none; background:var(--acc); color:#fff; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .tb-mic.alt{background:var(--card); color:var(--ink); border:0.5px solid var(--line);}
   #viewConvo.talking #regChip{display:none;}
+  .tb-cam{flex-shrink:0; width:44px; height:44px; border-radius:50%; border:0.5px solid var(--line); background:var(--card); font-size:18px; cursor:pointer;}
+  .bimg{display:block; max-width:100%; max-height:260px; border-radius:12px; margin-bottom:6px; cursor:zoom-in; background:var(--wb);}
+  #bigShow img{max-width:100%; max-height:82vh; border-radius:12px;}
   .tb-hint{font-size:11.5px; color:var(--muted); text-align:center; margin-top:7px; line-height:1.5;}
   .bub .orig{font-size:12px; opacity:.75; margin-top:4px;}
   .regcard{width:100%; background:var(--paper); border-radius:20px 20px 0 0; padding:44px 16px 16px; box-shadow:var(--shadow); max-height:90%; overflow-y:auto; position:relative;}
@@ -190,7 +193,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send micbtn" id="quickMic" title="Tap to talk">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v37 · saved on this device · tap to refresh</div>
+    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v38 · saved on this device · tap to refresh</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -211,7 +214,7 @@
     <div class="talkbar" id="talkBar">
       <div class="tb-top"><span class="t" id="tbTitle">🎙 In person</span><button class="chip" id="tbRead">Read in: English</button><button class="chip" id="tbDone" style="background:var(--wb);color:var(--muted);">✕ Done</button></div>
       <div class="tb-status" id="tbStatus"></div>
-      <div class="tb-in"><textarea id="tbIn" rows="1"></textarea><button class="tb-send" id="tbSend" disabled>Send ↑</button></div>
+      <div class="tb-in"><button class="tb-cam" id="tbCam" title="Photo">📷</button><textarea id="tbIn" rows="1"></textarea><button class="tb-send" id="tbSend" disabled>Send ↑</button></div>
       <div class="tb-mics"><button class="tb-mic" id="tbMeMic">🎤</button><button class="tb-mic" id="tbThemMic">🎤</button></div>
       <div class="tb-hint" id="tbHint"></div>
     </div>
@@ -320,6 +323,14 @@
     <div id="menuStatus" class="lbl" style="text-align:center;"></div>
     <div style="text-align:center;margin-top:8px;"><button class="btn" id="menuClose" style="flex:none;padding:11px 32px;">Close</button></div>
   </div></div>
+
+  <div class="regsheet" id="photoSheet"><div class="regcard">
+    <div style="font-size:15px;font-weight:600;" id="phTitle">📷 Photo</div>
+    <div class="lbl" id="phHint"></div>
+    <div style="display:flex;justify-content:center;margin:8px 0;"><canvas id="phCanvas" style="border-radius:12px;touch-action:none;background:#000;"></canvas></div>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button class="btn" id="phClear" style="flex:none;padding:10px 14px;"></button><button class="btn" id="phRetake" style="flex:none;padding:10px 14px;"></button><button class="btn primary" id="phAdd" style="flex:none;padding:10px 18px;"></button></div>
+  </div></div>
+  <input type="file" id="photoFile" accept="image/*" style="display:none;">
 
   <div class="regsheet" id="cloudSheet"><div class="regcard">
     <div style="font-size:15px;font-weight:600;margin-bottom:2px;">☁️ Automatic backup</div>
@@ -619,6 +630,7 @@
       wrap.appendChild(who);
       var b=document.createElement('div'); b.className='bub '+(m.who==='me'?'me':'them'); if(m.who!=='me')b.style.borderLeft='3px solid '+color;
       b.innerHTML = talkMode ? bubTalkHtml(m) : bubHtml(m, m._showLang||uiLang());
+      if(m.img) attachPhoto(b, m.img);
       b.onclick=function(){ if(window.getSelection && String(window.getSelection())!=='') return; toggleActbar(wrap,m,idx); };
       if(talkMode){ var sb=b.querySelector('.sayb'); if(sb) sb.onclick=function(e){ e.stopPropagation(); ttsUnlock(); var L=talkListenText(m); sayAloud(L.t,L.lang); }; }
       wrap.appendChild(b); thread.appendChild(wrap);
@@ -962,8 +974,8 @@
       return new Promise(function(res){ c.toBlob(function(b){ res(b||blob); },'image/jpeg',0.85); });
     }).catch(function(){ return blob; });
   }
-  function visionExtract(blob, names){
-    var prompt='This image is a screenshot/photo of a chat (probably LINE) between Julian and '+names.join(', ')+'.\nExtract the ACTUAL messages in top-to-bottom order. In LINE, right-aligned (usually green) bubbles are the account owner — assume that is Julian ("me"); left-aligned bubbles are the other person.\nSilently fix obvious OCR errors. Ignore UI chrome, headers, read-receipts, input bar. Stickers/photos become "[sticker]"/"[photo]".\nFor each message: speaker ("me" or the other person\'s name), "jp" (the Japanese text if the message is Japanese), "en" (the English text if the message is English) — fill only what is actually visible, leave the other "".\nReturn ONLY JSON: {"messages":[{"speaker":"me","jp":"","en":""}]}';
+  // one vision call (Gemini or Claude) → the model's raw text; used by chat-photo import AND in-person photos
+  function visionAsk(blob, prompt){
     return resizeImage(blob,1600).then(blobB64).then(function(b64){
       var mime='image/jpeg';
       if(cfg.provider==='gemini' && cfg.key){
@@ -981,8 +993,12 @@
           .then(function(r){ if(!r.ok) return r.json().catch(function(){return {};}).then(function(e){throw new Error((e.error&&e.error.message)||('HTTP '+r.status));}); return r.json(); })
           .then(function(d){ return d.content[0].text; });
       }
-      return Promise.reject(new Error('Photo import needs an AI key (⚙).'));
-    }).then(function(tx){ var j=parseModelJSON(tx); return Array.isArray(j.messages)?j.messages:(Array.isArray(j)?j:[]); });
+      return Promise.reject(new Error('Reading photos needs an AI key (⚙).'));
+    });
+  }
+  function visionExtract(blob, names){
+    var prompt='This image is a screenshot/photo of a chat (probably LINE) between Julian and '+names.join(', ')+'.\nExtract the ACTUAL messages in top-to-bottom order. In LINE, right-aligned (usually green) bubbles are the account owner — assume that is Julian ("me"); left-aligned bubbles are the other person.\nSilently fix obvious OCR errors. Ignore UI chrome, headers, read-receipts, input bar. Stickers/photos become "[sticker]"/"[photo]".\nFor each message: speaker ("me" or the other person\'s name), "jp" (the Japanese text if the message is Japanese), "en" (the English text if the message is English) — fill only what is actually visible, leave the other "".\nReturn ONLY JSON: {"messages":[{"speaker":"me","jp":"","en":""}]}';
+    return visionAsk(blob, prompt).then(function(tx){ var j=parseModelJSON(tx); return Array.isArray(j.messages)?j.messages:(Array.isArray(j)?j:[]); });
   }
   var rec={live:false, mr:null, chunks:[], busy:false};
   // mic states are announced in the text box itself, so the person holding the phone always knows it's listening
@@ -1134,6 +1150,65 @@
   // after dictation stops: nothing is sent — the words wait in the box to be fixed, added to (tap the mic again), or sent
   function tbAfterDictation(){ tbGrow(); }
   document.getElementById('tbIn').addEventListener('input',tbGrow);
+  // ===== In-person photos: snap or pick → circle what you mean → it lands in the chat with its text translated =====
+  // Photos live in their own IndexedDB store (bt_media), NOT in the chat data: a few photos would blow the ~5 MB
+  // localStorage budget, and a failed save there is silent. Messages only carry the photo's id.
+  var mdb=null, imgUrls={};
+  function mediaOpen(){ return new Promise(function(res,rej){ if(mdb) return res(mdb); var q=indexedDB.open('bt_media',1); q.onupgradeneeded=function(){ q.result.createObjectStore('imgs',{keyPath:'id'}); }; q.onsuccess=function(){ mdb=q.result; res(mdb); }; q.onerror=function(){ rej(q.error); }; }); }
+  function imgPut(id,blob){ return mediaOpen().then(function(db){ return new Promise(function(res,rej){ var t=db.transaction('imgs','readwrite'); t.objectStore('imgs').put({id:id,blob:blob}); t.oncomplete=function(){ res(id); }; t.onerror=function(){ rej(t.error); }; }); }); }
+  function imgUrl(id){ if(imgUrls[id]) return Promise.resolve(imgUrls[id]); return mediaOpen().then(function(db){ return new Promise(function(res){ var q=db.transaction('imgs').objectStore('imgs').get(id); q.onsuccess=function(){ var b=q.result&&q.result.blob; if(b){ imgUrls[id]=URL.createObjectURL(b); res(imgUrls[id]); } else res(null); }; q.onerror=function(){ res(null); }; }); }); }
+  function attachPhoto(bub,id){ var im=document.createElement('img'); im.className='bimg'; im.alt='photo'; bub.insertBefore(im,bub.firstChild);
+    im.onclick=function(e){ e.stopPropagation(); if(im.src) openBig('<img src="'+im.src+'" alt="photo">'); };
+    imgUrl(id).then(function(u){ if(u) im.src=u; else { im.remove(); } }); }
+  var ph={img:null, drawing:false, lastX:0, lastY:0};
+  function phText(){ return tbRead()==='ja'
+    ? {title:'📷 写真', hint:'指で丸をつけて、どこのことか示せます（なくてもOK）。', clear:'↺ 消す', retake:'📷 撮り直す', add:'チャットに追加 ↑', busy:'写真を翻訳中…'}
+    : {title:'📷 Photo', hint:'Draw on it to circle what you mean (optional).', clear:'↺ Clear marks', retake:'📷 Retake', add:'Add & translate ↑', busy:'Translating the photo…'}; }
+  function phDrawBase(){ var c=document.getElementById('phCanvas'), g=c.getContext('2d'); g.drawImage(ph.img,0,0,c.width,c.height); }
+  function phOpen(file){
+    var url=URL.createObjectURL(file), im=new Image();
+    im.onload=function(){
+      var s=Math.min(1,1400/Math.max(im.naturalWidth,im.naturalHeight)), c=document.getElementById('phCanvas');
+      c.width=Math.round(im.naturalWidth*s); c.height=Math.round(im.naturalHeight*s); ph.img=im; phDrawBase();
+      // show it as large as fits the sheet without distorting (canvas CSS size must keep the photo's proportions)
+      var maxW=Math.min(window.innerWidth-40,400), maxH=Math.round(window.innerHeight*0.55), k=Math.min(maxW/c.width,maxH/c.height);
+      c.style.width=Math.round(c.width*k)+'px'; c.style.height=Math.round(c.height*k)+'px';
+      var T=phText(); document.getElementById('phTitle').textContent=T.title; document.getElementById('phHint').textContent=T.hint;
+      document.getElementById('phClear').textContent=T.clear; document.getElementById('phRetake').textContent=T.retake; document.getElementById('phAdd').textContent=T.add;
+      document.getElementById('photoSheet').classList.add('on');
+    };
+    im.onerror=function(){ toast('Couldn\'t open that photo'); };
+    im.src=url;
+  }
+  (function(){ var c=document.getElementById('phCanvas');
+    function pt(e){ var r=c.getBoundingClientRect(); return [ (e.clientX-r.left)*c.width/r.width, (e.clientY-r.top)*c.height/r.height ]; }
+    c.addEventListener('pointerdown',function(e){ if(!ph.img) return; ph.drawing=true; var p=pt(e); ph.lastX=p[0]; ph.lastY=p[1]; c.setPointerCapture&&c.setPointerCapture(e.pointerId); });
+    c.addEventListener('pointermove',function(e){ if(!ph.drawing) return; var p=pt(e), g=c.getContext('2d');
+      g.strokeStyle='#FF3B30'; g.lineWidth=Math.max(5,c.width/140); g.lineCap='round'; g.lineJoin='round';
+      g.beginPath(); g.moveTo(ph.lastX,ph.lastY); g.lineTo(p[0],p[1]); g.stroke(); ph.lastX=p[0]; ph.lastY=p[1]; });
+    ['pointerup','pointercancel','pointerleave'].forEach(function(ev){ c.addEventListener(ev,function(){ ph.drawing=false; }); });
+  })();
+  document.getElementById('tbCam').onclick=function(){ ttsUnlock(); document.getElementById('photoFile').click(); };
+  document.getElementById('photoFile').onchange=function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=''; if(f) phOpen(f); };
+  document.getElementById('phClear').onclick=function(){ if(ph.img) phDrawBase(); };
+  document.getElementById('phRetake').onclick=function(){ document.getElementById('photoSheet').classList.remove('on'); document.getElementById('photoFile').click(); };
+  document.getElementById('phAdd').onclick=function(){
+    var c=document.getElementById('phCanvas'); if(!ph.img) return;
+    c.toBlob(function(blob){ if(!blob) return;
+      var id='img'+Date.now().toString(36), o=talkOther(), side=tbRead()==='ja'?'them':'me', T=phText();
+      document.getElementById('photoSheet').classList.remove('on');
+      imgPut(id,blob).then(function(){
+        // the photo appears in the chat right away; its translation fills in when the AI answers
+        var m={who:side, img:id, jp:'', en:'', ts:Date.now(), imported:true, source:'talk', photo:true}; if(side==='them') m.by=o.id;
+        m.en=T.busy; C().msgs.push(m); save(); renderThread(true);
+        if(!liveOn()){ m.en='(add a Gemini key in ⚙ to translate photos)'; save(); renderThread(true); return; }
+        var p='This photo was taken during an IN-PERSON conversation between Julian (reads English) and '+o.name+' (reads '+(o.lang==='ja'?'Japanese':'English')+'). If there are red marks, they circle what the person is asking about — focus on the marked area; otherwise use the whole photo.\nReturn ONLY JSON: {"japanese":"if the marked text is Japanese, that text exactly as written (fix only obvious misreads); otherwise a natural Japanese translation — or, if there is no text, a one-sentence Japanese description of the marked thing","english":"natural English translation of that text — or, if there is no text, a one-sentence English description of the marked thing"}\nNo commentary. Readings in square brackets ONLY after kanji, never after kana.';
+        visionAsk(blob,p).then(function(tx){ var j=parseModelJSON(tx); m.jp=rubyfy(String(j.japanese||'')); m.en=String(j.english||''); })
+          .catch(function(e){ m.en='(couldn\'t read the photo: '+(e.message||e)+')'; })
+          .then(function(){ save(); renderThread(true); });
+      }).catch(function(e){ toast('Couldn\'t save the photo: '+(e.message||e)); });
+    },'image/jpeg',0.85);
+  };
   function openTalk(){
     var o=talkOther(), ja=o.lang==='ja', me=document.getElementById('tbMeMic'), th=document.getElementById('tbThemMic');
     me._label='🎤 Speak English'; me.textContent=me._label; me._ja=false; me.classList.add('alt');
