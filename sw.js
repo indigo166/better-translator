@@ -1,5 +1,5 @@
 // Better Translator PWA service worker — network-first (always get the newest prototype), cache fallback (works offline).
-var CACHE = 'bt-v32';
+var CACHE = 'bt-v33';
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-maskable.svg', './apple-touch-icon.png', './icon-192.png', './icon-512.png']); }));
   self.skipWaiting();
