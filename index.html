@@ -127,6 +127,8 @@
   .sayb{border:none; background:none; cursor:pointer; font-size:15px; padding:0 0 0 8px; vertical-align:middle; opacity:.8;}
   .tb-mics{display:flex; gap:8px; margin-top:8px;}
   .tb-mic{flex:1; min-width:0; padding:14px 8px; font-size:16px; font-weight:600; border-radius:18px; border:none; background:var(--acc); color:#fff; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tb-mic.alt{background:var(--card); color:var(--ink); border:0.5px solid var(--line);}
+  #viewConvo.talking #regChip{display:none;}
   .tb-hint{font-size:11.5px; color:var(--muted); text-align:center; margin-top:7px; line-height:1.5;}
   .bub .orig{font-size:12px; opacity:.75; margin-top:4px;}
   .regcard{width:100%; background:var(--paper); border-radius:20px 20px 0 0; padding:44px 16px 16px; box-shadow:var(--shadow); max-height:90%; overflow-y:auto; position:relative;}
@@ -188,7 +190,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send micbtn" id="quickMic" title="Tap to talk">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v36 · saved on this device · tap to refresh</div>
+    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v37 · saved on this device · tap to refresh</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -602,17 +604,18 @@
     renderPinsBar();
     var winStart = threadShowAll ? 0 : Math.max(0, C().msgs.length-THREAD_WINDOW);
     if(winStart>0){ var moreBtn=document.createElement('button'); moreBtn.className='demo'; moreBtn.style.cssText='align-self:center;color:var(--acc-ink);flex-shrink:0;'; moreBtn.textContent='· show '+winStart+' earlier messages ·'; moreBtn.onclick=function(){ var anchor=winStart; threadShowAll=true; renderThread(); scrollToMsg(anchor); }; thread.appendChild(moreBtn); }
-    if(!C().msgs.length){ var es=document.createElement('div'); es.style.cssText='margin:auto;text-align:center;color:var(--muted);font-size:13px;line-height:1.8;padding:30px 26px;'; es.innerHTML = uiLang()==='ja' ? '下のボックスに話すか、入力してください。<br>ジュリアンが読める形に翻訳されます。' : 'Say it in English below — it becomes natural Japanese in the right register,<br>and you review it before it sends.<br><span style="font-size:12px;">🎤 to dictate · 🎙 in-person mode is in ⋮</span>'; thread.appendChild(es); }
+    var tj = talkMode && tbRead()==='ja';   // in-person + 日本語: everything a guest sees is Japanese
+    if(!C().msgs.length){ var es=document.createElement('div'); es.style.cssText='margin:auto;text-align:center;color:var(--muted);font-size:13px;line-height:1.8;padding:30px 26px;'; es.innerHTML = talkMode ? (tj ? '下のボタンを押して話してください。<br>会話はここに日本語で表示されます。' : 'Tap your button below and talk.<br>The conversation shows up here.') : uiLang()==='ja' ? '下のボックスに話すか、入力してください。<br>ジュリアンが読める形に翻訳されます。' : 'Say it in English below — it becomes natural Japanese in the right register,<br>and you review it before it sends.<br><span style="font-size:12px;">🎤 to dictate · 🎙 in-person mode is in ⋮</span>'; thread.appendChild(es); }
     var lastTs=null;
     C().msgs.forEach(function(m, idx){
       if(idx<winStart) return;
-      if(m.ts && (!lastTs || !sameDay(lastTs,m.ts))){ var sep=document.createElement('div'); sep.className='seg'; sep.textContent=fmtDay(m.ts); thread.appendChild(sep); }
+      if(m.ts && (!lastTs || !sameDay(lastTs,m.ts))){ var sep=document.createElement('div'); sep.className='seg'; sep.textContent=tj?((new Date(m.ts).getMonth()+1)+'月'+new Date(m.ts).getDate()+'日'):fmtDay(m.ts); thread.appendChild(sep); }
       if(m.ts) lastTs=m.ts;
       if(m.sys){ var sm=document.createElement('div'); sm.className='seg'; sm.style.maxWidth='90%'; sm.style.textAlign='center'; sm.textContent=plain(m.en||m.jp||''); thread.appendChild(sm); return; }
       var color=m.who==='me'?ME_COLOR:personColor(m.by);
       var wrap=document.createElement('div'); wrap.className='msgwrap '+(m.who==='me'?'me':'them'); wrap.setAttribute('data-idx',idx);
       var who=document.createElement('div'); who.className='who';
-      who.innerHTML='<span class="cd" style="background:'+color+'"></span>'+esc(m.who==='me'?'You':senderName(m))+'<span class="tm">· '+fmtTime(m.ts)+'</span>'+(m.imported?'<span class="tm" style="color:var(--acc-ink);">· ⇩ '+srcLabel(m.source)+'</span>':'')+(m.pinned?'<span class="tm">📌</span>':'')+(m.saved?'<span class="tm">⭐</span>':'');
+      who.innerHTML='<span class="cd" style="background:'+color+'"></span>'+esc(m.who==='me'?(tj?'ジュリアン':'You'):(tj&&m.by==='guest'?'あなた':senderName(m)))+'<span class="tm">· '+fmtTime(m.ts)+'</span>'+(m.imported?'<span class="tm" style="color:var(--acc-ink);">· ⇩ '+(tj&&m.source==='talk'?'対面':srcLabel(m.source))+'</span>':'')+(m.pinned?'<span class="tm">📌</span>':'')+(m.saved?'<span class="tm">⭐</span>':'');
       wrap.appendChild(who);
       var b=document.createElement('div'); b.className='bub '+(m.who==='me'?'me':'them'); if(m.who!=='me')b.style.borderLeft='3px solid '+color;
       b.innerHTML = talkMode ? bubTalkHtml(m) : bubHtml(m, m._showLang||uiLang());
@@ -1106,7 +1109,7 @@
   function tbT(){ return TBUI[tbRead()]; }
   function tbMark(){ var ja=tbRead()==='ja', T=tbT();
     document.getElementById('tbRead').innerHTML = ja ? '<span style="opacity:.55">English</span> | <b>日本語</b>' : '<b>English</b> | <span style="opacity:.55">日本語</span>';
-    document.getElementById('tbTitle').textContent=T.title; document.getElementById('tbSend').textContent=T.send; document.getElementById('tbDone').textContent=T.done;
+    document.getElementById('tbTitle').textContent=T.title; document.getElementById('tbSend').textContent=T.send; document.getElementById('tbDone').textContent=T.done; document.getElementById('tbDone').style.display=ja?'none':''; document.getElementById('cName').textContent=(ja&&C().name==='Quick chat')?'対面':convoName(C());
     document.getElementById('tbHint').textContent=T.hint; document.getElementById('tbIn').placeholder=T.ph; }
   function tbSend(side){
     var ta=document.getElementById('tbIn'), v=ta.value.trim(); if(!v||tbBusy) return;
@@ -1133,14 +1136,14 @@
   document.getElementById('tbIn').addEventListener('input',tbGrow);
   function openTalk(){
     var o=talkOther(), ja=o.lang==='ja', me=document.getElementById('tbMeMic'), th=document.getElementById('tbThemMic');
-    me._label='🎤 Speak English'; me.textContent=me._label; me._ja=false;
-    th._label=ja?'🎤 日本語で話す':'🎤 Speak ('+o.name+')'; th.textContent=th._label; th._ja=ja; th.style.background=o.color||'';
+    me._label='🎤 Speak English'; me.textContent=me._label; me._ja=false; me.classList.add('alt');
+    th._label=ja?'🎤 日本語で話す':'🎤 Speak ('+o.name+')'; th.textContent=th._label; th._ja=ja; th.classList.remove('alt');
     document.getElementById('tbStatus').textContent='';
     talkMode=true; viewConvo.classList.add('talking'); demos.innerHTML=''; tbMark(); renderThread(true);
     tbGrow();   // measure only once the bar is on screen
   }
   function closeTalk(){ if(rec.live){ rec.userStop=true; if(rec.sr){ try{rec.sr.stop();}catch(e){} } else { try{rec.mr.stop();}catch(e){} } } try{ speechSynthesis.cancel(); }catch(e){}
-    talkMode=false; viewConvo.classList.remove('talking'); renderThread(true); renderSuggs(); }
+    talkMode=false; viewConvo.classList.remove('talking'); document.getElementById('cName').textContent=convoName(C()); renderThread(true); renderSuggs(); }
   document.getElementById('tbMeMic').onclick=function(){ ttsUnlock(); if(!rec.live) tbDraftSide='me'; recordToggle(document.getElementById('tbIn'), this, 'en-US', tbAfterDictation); };
   document.getElementById('tbThemMic').onclick=function(){ ttsUnlock(); if(!rec.live) tbDraftSide='them'; recordToggle(document.getElementById('tbIn'), this, talkOther().lang==='ja'?'ja-JP':'en-US', tbAfterDictation); };
   document.getElementById('tbSend').onclick=function(){ ttsUnlock(); tbSend(); };
