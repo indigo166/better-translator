@@ -112,24 +112,19 @@
   .btn.primary{flex:1.4; background:var(--acc); color:#fff; border-color:var(--acc); font-weight:600;}
   .regsheet{position:absolute; inset:0; background:rgba(0,0,0,.32); display:none; align-items:flex-end; z-index:25;}
   .regsheet.on{display:flex;}
-  /* in-person: face-to-face split screen — phone flat between two people, top half turned to face the other person */
-  .talkview{position:absolute; inset:0; z-index:40; background:var(--paper); display:none; flex-direction:column;}
-  .talkview.on{display:flex;}
-  .tv-half{flex:1; min-height:0; display:flex; flex-direction:column; padding:10px 12px 12px;}
-  .tv-them{background:var(--wb);}
-  .talkview.facing .tv-them{transform:rotate(180deg);}
-  .tv-hist{flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding:2px 0 8px;}
-  .tv-b{max-width:86%; align-self:flex-start; padding:7px 11px; border-radius:14px; font-size:15px; line-height:1.5; background:var(--card); border:0.5px solid var(--line); white-space:pre-wrap;}
-  .tv-b.mine{align-self:flex-end; background:var(--acc-soft); color:var(--acc-ink); border-color:transparent;}
-  .tv-b.latest{font-size:21px; font-weight:600;}
-  .tv-b .say{margin-left:6px; border:none; background:none; cursor:pointer; font-size:14px; vertical-align:middle;}
-  .tv-hint{font-size:12px; color:var(--muted); text-align:center; margin:2px 0 6px;}
-  .tv-status{font-size:12px; color:var(--acc-ink); text-align:center; min-height:16px;}
-  .tv-in{display:flex; gap:8px; align-items:flex-end;}
-  .tv-in textarea{flex:1; border:0.5px solid var(--line); background:var(--card); border-radius:14px; padding:9px 12px; color:var(--ink); font:inherit; font-size:16px; resize:none; outline:none;}
-  .tv-mic{width:100%; margin-top:8px; padding:15px; font-size:19px; font-weight:600; border-radius:18px; border:none; background:var(--acc); color:#fff; cursor:pointer;}
-  .tv-bar{display:flex; align-items:center; gap:8px; padding:7px 12px; border-top:0.5px solid var(--line); border-bottom:0.5px solid var(--line); background:var(--paper);}
-  .tv-bar .nm{flex:1; font-size:13px; font-weight:600;}
+  /* in-person mode = the normal chat thread, with the typing bar swapped for one mic button per person */
+  .talkbar{display:none; border-top:0.5px solid var(--line); padding:8px 12px 12px;}
+  #viewConvo.talking .talkbar{display:block;}
+  #viewConvo.talking .composer{display:none;}
+  .tb-top{display:flex; align-items:center; gap:8px; margin-bottom:8px;}
+  .tb-top .t{font-size:13px; font-weight:600; flex:1;}
+  .tb-status{font-size:12px; color:var(--acc-ink); text-align:center; min-height:16px; margin-bottom:4px;}
+  .tb-in{display:flex; gap:8px; align-items:flex-end;}
+  .tb-in textarea{flex:1; border:0.5px solid var(--line); background:var(--card); border-radius:18px; padding:9px 13px; color:var(--ink); font:inherit; font-size:15px; resize:none; outline:none; max-height:110px;}
+  .tb-mics{display:flex; gap:8px; margin-top:8px;}
+  .tb-mic{flex:1; min-width:0; padding:14px 8px; font-size:16px; font-weight:600; border-radius:18px; border:none; background:var(--acc); color:#fff; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tb-hint{font-size:11.5px; color:var(--muted); text-align:center; margin-top:7px; line-height:1.5;}
+  .bub .orig{font-size:12px; opacity:.75; margin-top:4px;}
   .regcard{width:100%; background:var(--paper); border-radius:20px 20px 0 0; padding:44px 16px 16px; box-shadow:var(--shadow); max-height:90%; overflow-y:auto; position:relative;}
   .sheetX{position:absolute; top:10px; right:12px; width:32px; height:32px; border-radius:50%; border:none; background:var(--wb); color:var(--muted); font-size:15px; cursor:pointer; z-index:2;}
   .segbtns{display:flex; border:0.5px solid var(--line); border-radius:12px; overflow:hidden; margin:8px 0 4px;}
@@ -189,7 +184,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send micbtn" id="quickMic" title="Tap to talk">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v33 · saved on this device · tap to refresh</div>
+    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v34 · saved on this device · tap to refresh</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -206,6 +201,13 @@
       <div class="demos" id="demos"></div>
       <div class="inrow"><textarea id="input" rows="1" placeholder="Say it in English…"></textarea><button class="send micbtn" id="micBtn" title="Tap to talk">🎤</button><button class="send" id="send" disabled>↑</button></div>
       <div class="wbtab" id="wbOpen2">⌃ ask the AI about this chat</div>
+    </div>
+    <div class="talkbar" id="talkBar">
+      <div class="tb-top"><span class="t">🎙 In person</span><button class="chip" id="tbSay">🔊 on</button><button class="chip" id="tbDone" style="background:var(--wb);color:var(--muted);">✕ Done</button></div>
+      <div class="tb-status" id="tbStatus"></div>
+      <div class="tb-in"><textarea id="tbIn" rows="1"></textarea><button class="send" id="tbSend">↑</button></div>
+      <div class="tb-mics"><button class="tb-mic" id="tbMeMic">🎤</button><button class="tb-mic" id="tbThemMic">🎤</button></div>
+      <div class="tb-hint" id="tbHint"></div>
     </div>
   </div>
 
@@ -347,28 +349,7 @@
     <div style="text-align:center;margin-top:8px;"><button class="btn" id="listClose" style="flex:none;padding:11px 32px;">Close</button></div>
   </div></div>
 
-  <div class="talkview" id="talkView">
-    <div class="tv-half tv-them">
-      <div class="tv-hist" id="tvThemHist"></div>
-      <div class="tv-status" id="tvThemStatus"></div>
-      <div class="tv-hint" id="tvThemHint"></div>
-      <div class="tv-in"><textarea id="tvThemIn" rows="1"></textarea><button class="send" id="tvThemSend">↑</button></div>
-      <button class="tv-mic" id="tvThemMic">🎤</button>
-    </div>
-    <div class="tv-bar">
-      <span class="nm" id="tvName">In person</span>
-      <button class="chip" id="tvFlip" title="Face-to-face or same direction">⇅</button>
-      <button class="chip" id="tvSay" title="Read translations aloud">🔊</button>
-      <button class="chip" id="tvClose" style="background:var(--wb);color:var(--muted);">✕ Close</button>
-    </div>
-    <div class="tv-half tv-me">
-      <div class="tv-hist" id="tvMeHist"></div>
-      <div class="tv-status" id="tvMeStatus"></div>
-      <div class="tv-hint" id="tvMeHint"></div>
-      <div class="tv-in"><textarea id="tvMeIn" rows="1"></textarea><button class="send" id="tvMeSend">↑</button></div>
-      <button class="tv-mic" id="tvMeMic">🎤</button>
-    </div>
-  </div>
+
 
   <div id="bigShow"><div class="t"></div><div class="hint">tap anywhere to close · タップで閉じる</div></div>
 
@@ -630,8 +611,8 @@
       who.innerHTML='<span class="cd" style="background:'+color+'"></span>'+esc(m.who==='me'?'You':senderName(m))+'<span class="tm">· '+fmtTime(m.ts)+'</span>'+(m.imported?'<span class="tm" style="color:var(--acc-ink);">· ⇩ '+srcLabel(m.source)+'</span>':'')+(m.pinned?'<span class="tm">📌</span>':'')+(m.saved?'<span class="tm">⭐</span>':'');
       wrap.appendChild(who);
       var b=document.createElement('div'); b.className='bub '+(m.who==='me'?'me':'them'); if(m.who!=='me')b.style.borderLeft='3px solid '+color;
-      b.innerHTML=bubHtml(m, m._showLang||uiLang());
-      b.onclick=function(){ if(window.getSelection && String(window.getSelection())!=='') return; toggleActbar(wrap,m,idx); };
+      b.innerHTML = talkMode ? bubTalkHtml(m) : bubHtml(m, m._showLang||uiLang());
+      b.onclick=function(){ if(window.getSelection && String(window.getSelection())!=='') return; if(talkMode){ ttsUnlock(); var L=talkListenText(m); sayAloud(L.t,L.lang); return; } toggleActbar(wrap,m,idx); };
       wrap.appendChild(b); thread.appendChild(wrap);
     });
     thread.scrollTop = toBottom ? thread.scrollHeight : prevScroll;  // only jump to bottom on open/send/import — a language toggle or edit keeps your place
@@ -695,6 +676,7 @@
   }
   function openConvo(k){
     cur=k; var c=C(); register=c.reg; threadShowAll=false;
+    if(talkMode){ talkMode=false; viewConvo.classList.remove('talking'); try{ speechSynthesis.cancel(); }catch(e){} }
     // Restore who had the phone — reopening a chat must NOT silently flip the language back to English
     activeSpeaker=(c.speaker && (c.speaker==='me' || c.parts.indexOf(c.speaker)>-1)) ? c.speaker : 'me';
     c.msgs.forEach(function(m){delete m._showLang;});
@@ -704,7 +686,7 @@
     input.value=localStorage.getItem('bt_draft_'+k)||''; autoresize(); send.disabled=input.value.trim()==='';   // drafts survive leaving / reloading
     renderRegLabel(); applyLang(); renderThread(true); renderWbThread(); renderSuggs(); wb.classList.remove('on'); showView('convo');
   }
-  document.getElementById('backBtn').onclick=function(){ removeSelChip(); renderChats(); showView('chats'); };
+  document.getElementById('backBtn').onclick=function(){ if(talkMode) closeTalk(); removeSelChip(); renderChats(); showView('chats'); };
   function renderRegLabel(){ document.getElementById('regLabel').textContent=regLabels[register]; }
 
   // speaker — everyone in the chat is listed inline; one tap switches (no picker sheet)
@@ -730,7 +712,7 @@
   function suggKey(){ return C().msgs.length+'|'+activeSpeaker; }
   function renderSuggs(){
     demos.innerHTML=''; var c=C(); if(!c) return;
-    if(talkView.classList.contains('on')) return;  // mid-conversation in-person turns don't need reply chips
+    if(talkMode) return;  // mid-conversation in-person turns don't need reply chips
     if(!c.msgs.length || !liveOn()){ if(curSrc()==='en') DEFAULT_SUGGS.forEach(function(s){ demos.appendChild(suggChip(s[0],s[1])); }); return; }
     if(c._suggs && c._suggs.k===suggKey()){ c._suggs.items.forEach(function(s){ demos.appendChild(suggChip(s.length>26?s.slice(0,25)+'…':s, s)); }); return; }
     var b=document.createElement('button'); b.className='demo'; b.textContent='✨ …'; b.disabled=true; demos.appendChild(b);
@@ -1081,20 +1063,21 @@
   };
   document.getElementById('quickMic').onclick=function(){ recordToggle(quickInput, document.getElementById('quickMic'), 'en-US'); };
 
-  // ===== In-person mode: face-to-face split screen (PRD §17.1, redesigned 2026-09-23) =====
-  // The phone lies flat between two people. The top half is turned to face the other person and is entirely in THEIR
-  // language; the bottom half is Julian's. Nobody passes the phone: each taps their own 🎤, talks, taps again (or just
-  // stops talking), and the translation lands — big, and read aloud — on the other person's half. Each half scrolls the
-  // whole conversation in its own language, so there is exactly one place for each person to read.
-  var talkView=document.getElementById('talkView'), tvBusy=false, ttsUnlocked=false;
-  function talkOther(){ var x=partsOf(C())[0]; return x?{id:x.id,name:x.p.name,lang:x.p.lang||'ja'}:{id:'guest',name:'Them',lang:'ja'}; }
-  var TVS={
-    ja:{ mic:'🎤 話す', ph:'ここに入力もできます', hint:'🎤 を押して話してください。終わったら ■ を押すと、翻訳されて相手に表示されます。', busy:'翻訳中…', need:'AIキーが設定されていません', empty:'会話はまだありません' },
-    en:{ mic:'🎤 Speak', ph:'…or type here', hint:'Tap 🎤, talk, then tap ■ — the translation appears on their side.', busy:'Translating…', need:'Needs a Gemini key (⚙)', empty:'No messages yet' }
-  };
-  function tvLang(){ return talkOther().lang==='ja'?'ja':'en'; }
-  // iPhone only lets a page speak after a tap has "unlocked" speech, and silently DROPS speech requested right after
-  // cancel() — the old "Say it" button did exactly that, which is why it never made a sound
+  // ===== In-person mode: a normal texting thread, with one mic button per person (PRD §17.1, v34) =====
+  // The chat stays on screen. The typing bar becomes two big buttons — "🎤 You · English" and "🎤 話す · <name>".
+  // Whoever talks taps THEIR button, talks, taps ■ (or just stops) → it translates by itself and lands as a bubble.
+  // Every bubble shows the translation big (what the other person needs) with the original small underneath, and new
+  // translations are read aloud to the listener. Typed text works too: Japanese → from them, anything else → from Julian.
+  var talkMode=false, tbBusy=false, ttsUnlocked=false;
+  function talkOther(){ var x=partsOf(C())[0]; return x?{id:x.id,name:x.p.name,lang:x.p.lang||'ja',color:x.p.color}:{id:'guest',name:'Them',lang:'ja',color:'#2C7BB0'}; }
+  function isJaText(t){ return /[぀-ヿ㐀-鿿]/.test(String(t||'')); }
+  // bubble in in-person mode: the translation big, the original small — the listener reads the big line
+  function bubTalkHtml(m){
+    if(m.who==='me') return (isJaText(plain(m.jp||''))?m.jp:esc(m.en||''))+(m.en?'<div class="orig">'+esc(m.en)+'</div>':'');
+    return '<span>'+esc(m.en||plain(m.jp||''))+'</span>'+(m.jp?'<div class="orig">'+m.jp+'</div>':'');
+  }
+  function talkListenText(m){ return m.who==='me' ? {t:plain(m.jp||''), lang:'ja-JP'} : {t:m.en||'', lang:'en-US'}; }
+  // iPhone only lets a page speak after a tap has "unlocked" speech, and silently DROPS speech requested right after cancel()
   function ttsUnlock(){ if(ttsUnlocked||!window.speechSynthesis) return; try{ var u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); ttsUnlocked=true; }catch(e){} }
   function sayAloud(text,lang){
     if(!window.speechSynthesis||!text) return;
@@ -1104,29 +1087,14 @@
       u.rate=lang==='ja-JP'?0.95:1; speechSynthesis.speak(u); }catch(e){} }
     if(speechSynthesis.speaking||speechSynthesis.pending){ speechSynthesis.cancel(); setTimeout(go,150); } else go();
   }
-  function tvSayOn(){ return localStorage.getItem('bt_talk_say')!=='0'; }
-  function tvMarkBar(){ var b=document.getElementById('tvSay'); b.textContent=tvSayOn()?'🔊 on':'🔇 off'; b.style.opacity=tvSayOn()?'1':'.6';
-    document.getElementById('tvFlip').textContent = talkView.classList.contains('facing') ? '⇅ face to face' : '⇅ same way'; }
-  function tvFill(histId,side,lang){
-    var el=document.getElementById(histId); el.innerHTML='';
-    var msgs=C().msgs.filter(function(m){ return !m.sys; }).slice(-40), lastToReader=-1;
-    msgs.forEach(function(m,i){ if(m.who!==side) lastToReader=i; });
-    if(!msgs.length){ var e=document.createElement('div'); e.className='tv-hint'; e.style.margin='auto'; e.textContent=TVS[lang].empty; el.appendChild(e); return; }
-    msgs.forEach(function(m,i){
-      var txt = lang==='ja' ? plain(m.jp||'') : (m.en||plain(m.jp||'')); if(!txt) return;
-      var d=document.createElement('div'); d.className='tv-b'+(m.who===side?' mine':'')+(i===lastToReader?' latest':''); d.textContent=txt;
-      var sb=document.createElement('button'); sb.className='say'; sb.textContent='🔊'; sb.onclick=function(){ ttsUnlock(); sayAloud(txt, lang==='ja'?'ja-JP':'en-US'); };
-      d.appendChild(sb); el.appendChild(d);
-    });
-    el.scrollTop=el.scrollHeight;
-  }
-  function tvRender(){ var tl=tvLang(); document.getElementById('tvName').textContent='🎙 '+talkOther().name; tvFill('tvThemHist','them',tl); tvFill('tvMeHist','me','en'); }
-  function tvSend(side){
-    var ta=document.getElementById(side==='me'?'tvMeIn':'tvThemIn'), v=ta.value.trim(); if(!v||tvBusy) return;
-    var o=talkOther(), tl=tvLang(), mine=document.getElementById(side==='me'?'tvMeStatus':'tvThemStatus'), theirs=document.getElementById(side==='me'?'tvThemStatus':'tvMeStatus');
-    var myL=side==='me'?TVS.en:TVS[tl], theirL=side==='me'?TVS[tl]:TVS.en;
-    if(!liveOn()){ mine.textContent=myL.need; return; }
-    tvBusy=true; mine.textContent=myL.busy; theirs.textContent=theirL.busy;
+  function tbSayOn(){ return localStorage.getItem('bt_talk_say')!=='0'; }
+  function tbMark(){ var b=document.getElementById('tbSay'); b.textContent=tbSayOn()?'🔊 read aloud':'🔇 silent'; }
+  function tbSend(side){
+    var ta=document.getElementById('tbIn'), v=ta.value.trim(); if(!v||tbBusy) return;
+    if(!side) side=isJaText(v)?'them':'me';
+    var o=talkOther(), st=document.getElementById('tbStatus');
+    if(!liveOn()){ st.textContent='Translating needs a Gemini key (⚙) · 翻訳にはAIキーが必要です'; return; }
+    tbBusy=true; st.textContent=side==='me'?'Translating… · 翻訳中…':'翻訳中… · Translating…';
     var toJa=side==='me', noComment='no comments, no notes about spelling/grammar/politeness, no parentheses — ONLY the translation itself';
     var p = toJa
       ? 'Julian is speaking IN PERSON to '+o.name+'. Translate his English into natural spoken Japanese ('+REGDESC[register]+'), in his voice: '+voiceDesc()+'\nHe said: "'+v+'"\nReturn ONLY JSON: {"japanese":"the Japanese; readings in square brackets ONLY after kanji words, never after kana","back_translation":"faithful plain English — '+noComment+'"}'
@@ -1134,31 +1102,27 @@
     callLLM(p,null,{json:true,timeout:20000}).then(function(tx){ var j=parseModelJSON(tx);
       var m={who:toJa?'me':'them', jp:rubyfy(j.japanese||(toJa?'':v)), en:toJa?v:String(j.back_translation||''), ts:Date.now(), imported:true, source:'talk'};
       if(m.who==='them') m.by=o.id;
-      C().msgs.push(m); save(); ta.value=''; mine.textContent=''; theirs.textContent='';
-      tvRender();
-      if(tvSayOn()){ if(toJa) sayAloud(plain(m.jp), tl==='ja'?'ja-JP':'en-US'); else sayAloud(m.en,'en-US'); }
-    }).catch(function(e){ mine.textContent='⚠ '+(e.message||String(e)); theirs.textContent=''; }).then(function(){ tvBusy=false; });
+      C().msgs.push(m); save(); ta.value=''; st.textContent=''; renderThread(true);
+      if(tbSayOn()){ var L=talkListenText(m); sayAloud(L.t,L.lang); }
+    }).catch(function(e){ st.textContent='⚠ '+(e.message||String(e)); }).then(function(){ tbBusy=false; });
   }
   function openTalk(){
-    var tl=tvLang(), tm=document.getElementById('tvThemMic'), mm=document.getElementById('tvMeMic');
-    tm._label=TVS[tl].mic; tm.textContent=tm._label; tm._ja=(tl==='ja');
-    mm._label=TVS.en.mic; mm.textContent=mm._label; mm._ja=false;
-    document.getElementById('tvThemIn').placeholder=TVS[tl].ph; document.getElementById('tvMeIn').placeholder=TVS.en.ph;
-    document.getElementById('tvThemHint').textContent=TVS[tl].hint; document.getElementById('tvMeHint').textContent=TVS.en.hint;
-    ['tvThemStatus','tvMeStatus'].forEach(function(id){ document.getElementById(id).textContent=''; });
-    talkView.classList.toggle('facing', localStorage.getItem('bt_talk_face')!=='0');
-    tvMarkBar(); tvRender(); talkView.classList.add('on');
+    var o=talkOther(), ja=o.lang==='ja', me=document.getElementById('tbMeMic'), th=document.getElementById('tbThemMic');
+    me._label='🎤 You · English'; me.textContent=me._label; me._ja=false;
+    th._label=(ja?'🎤 話す · ':'🎤 ')+o.name; th.textContent=th._label; th._ja=ja; th.style.background=o.color||'';
+    document.getElementById('tbIn').placeholder=ja?'Type in English or 日本語…':'Type…';
+    document.getElementById('tbHint').textContent=ja?'Tap your button, talk, then tap ■ · 自分のボタンを押して話し、終わったら ■ を押してください':'Tap your button, talk, then tap ■';
+    document.getElementById('tbStatus').textContent='';
+    talkMode=true; viewConvo.classList.add('talking'); demos.innerHTML=''; tbMark(); renderThread(true);
   }
   function closeTalk(){ if(rec.live){ if(rec.sr){ try{rec.sr.stop();}catch(e){} } else { try{rec.mr.stop();}catch(e){} } } try{ speechSynthesis.cancel(); }catch(e){}
-    talkView.classList.remove('on'); renderThread(true); renderSuggs(); }
-  document.getElementById('tvMeMic').onclick=function(){ ttsUnlock(); recordToggle(document.getElementById('tvMeIn'), this, 'en-US', function(){ tvSend('me'); }); };
-  document.getElementById('tvThemMic').onclick=function(){ ttsUnlock(); recordToggle(document.getElementById('tvThemIn'), this, tvLang()==='ja'?'ja-JP':'en-US', function(){ tvSend('them'); }); };
-  document.getElementById('tvMeSend').onclick=function(){ ttsUnlock(); tvSend('me'); };
-  document.getElementById('tvThemSend').onclick=function(){ ttsUnlock(); tvSend('them'); };
-  ['tvMeIn','tvThemIn'].forEach(function(id){ document.getElementById(id).addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); ttsUnlock(); tvSend(id==='tvMeIn'?'me':'them'); } }); });
-  document.getElementById('tvFlip').onclick=function(){ talkView.classList.toggle('facing'); localStorage.setItem('bt_talk_face',talkView.classList.contains('facing')?'1':'0'); tvMarkBar(); };
-  document.getElementById('tvSay').onclick=function(){ localStorage.setItem('bt_talk_say',tvSayOn()?'0':'1'); ttsUnlock(); tvMarkBar(); };
-  document.getElementById('tvClose').onclick=closeTalk;
+    talkMode=false; viewConvo.classList.remove('talking'); renderThread(true); renderSuggs(); }
+  document.getElementById('tbMeMic').onclick=function(){ ttsUnlock(); recordToggle(document.getElementById('tbIn'), this, 'en-US', function(){ tbSend('me'); }); };
+  document.getElementById('tbThemMic').onclick=function(){ ttsUnlock(); recordToggle(document.getElementById('tbIn'), this, talkOther().lang==='ja'?'ja-JP':'en-US', function(){ tbSend('them'); }); };
+  document.getElementById('tbSend').onclick=function(){ ttsUnlock(); tbSend(); };
+  document.getElementById('tbIn').addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); ttsUnlock(); tbSend(); } });
+  document.getElementById('tbSay').onclick=function(){ localStorage.setItem('bt_talk_say',tbSayOn()?'0':'1'); ttsUnlock(); tbMark(); };
+  document.getElementById('tbDone').onclick=closeTalk;
   document.getElementById('menuTalk').onclick=function(){ menuSheet.classList.remove('on'); openTalk(); };
   document.getElementById('quickTalk').onclick=function(){ newSheet.classList.remove('on'); startQuick(''); openTalk(); };
 
