@@ -1,9 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0F7A6B">
+<meta name="google" content="notranslate">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -120,7 +121,7 @@
   .tb-top .t{font-size:13px; font-weight:600; flex:1;}
   .tb-status{font-size:12px; color:var(--acc-ink); text-align:center; min-height:16px; margin-bottom:4px;}
   .tb-in{display:flex; gap:8px; align-items:flex-end;}
-  .tb-in textarea{flex:1; border:0.5px solid var(--line); background:var(--card); border-radius:18px; padding:9px 13px; color:var(--ink); font:inherit; font-size:15px; line-height:1.45; resize:none; outline:none; max-height:34vh; overflow-y:auto;}
+  .tb-in textarea{flex:1; border:0.5px solid var(--line); background:var(--card); border-radius:18px; padding:9px 13px; color:var(--ink); font:inherit; font-size:15px; line-height:1.45; resize:none; outline:none; min-height:44px; max-height:34vh; overflow-y:auto;}
   .tb-send{flex-shrink:0; border:none; border-radius:18px; background:var(--acc); color:#fff; font-weight:600; font-size:14px; padding:10px 14px; cursor:pointer;}
   .tb-send:disabled{opacity:.4;}
   .sayb{border:none; background:none; cursor:pointer; font-size:15px; padding:0 0 0 8px; vertical-align:middle; opacity:.8;}
@@ -187,7 +188,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send micbtn" id="quickMic" title="Tap to talk">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v35 · saved on this device · tap to refresh</div>
+    <div id="verFooter" style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center; cursor:pointer;">prototype v36 · saved on this device · tap to refresh</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -996,25 +997,29 @@
   // (e.g. Vivaldi/Brave, which ship without a speech service) and remembers that for this device.
   var SRc=window.SpeechRecognition||window.webkitSpeechRecognition;
   function useLive(){ return !!SRc && (localStorage.getItem('bt_dict')||'live')==='live' && !localStorage.getItem('bt_sr_off'); }
-  function liveDictate(into,btn,lang,onDone){
-    var r=new SRc(), base=into.value?into.value.replace(/\s*$/,' '):'', got=false, hardErr=null;
+  function liveDictate(into,btn,lang,onDone,resume){
+    if(!resume){ rec.srT0=Date.now(); rec.srGot=false; rec.userStop=false; }
+    var r=new SRc(), base=into.value?into.value.replace(/\s*$/,' '):'', hardErr=null;
     r.lang=lang; r.interimResults=true; r.continuous=true; r.maxAlternatives=1;
-    rec.sr=r; rec.live=true; btnRecState(btn,'rec');
+    rec.sr=r; rec.live=true; if(!resume) btnRecState(btn,'rec');
     r.onresult=function(ev){
       // rebuild from ALL results each time (never accumulate) — iOS can re-deliver earlier results, which would duplicate words
       var fin='', inter=''; for(var i=0;i<ev.results.length;i++){ var t=ev.results[i][0].transcript; if(ev.results[i].isFinal) fin+=t; else inter+=t; }
-      if(fin||inter){ got=true; into.value=base+fin+inter; into.dispatchEvent(new Event('input')); }
+      if(fin||inter){ rec.srGot=true; into.value=base+fin+inter; into.dispatchEvent(new Event('input')); }
     };
     r.onerror=function(ev){ if(ev.error!=='no-speech' && ev.error!=='aborted') hardErr=ev.error; };
-    r.onend=function(){ rec.sr=null; rec.live=false; btnRecState(btn,'');
-      if(got){ into.value=into.value.replace(/\s+$/,''); into.dispatchEvent(new Event('input')); if(onDone) onDone(into.value); else into.focus(); return; }
+    r.onend=function(){ rec.sr=null;
+      // the engine stopped on its own (a pause in speech) — keep listening until the person taps ■ (3-minute ceiling)
+      if(!hardErr && !rec.userStop && Date.now()-rec.srT0<180000){ setTimeout(function(){ if(!rec.userStop) liveDictate(into,btn,lang,onDone,true); else { rec.live=false; btnRecState(btn,''); } },150); return; }
+      rec.live=false; btnRecState(btn,'');
+      if(rec.srGot){ into.value=into.value.replace(/\s+$/,''); into.dispatchEvent(new Event('input')); if(onDone) onDone(into.value); else into.focus(); return; }
       if(hardErr==='not-allowed'){ alert('The microphone or speech recognition is blocked. On iPhone: Settings → Privacy & Security → Microphone and Speech Recognition, and make sure Siri & Dictation is on.'); return; }
-      if(hardErr){ localStorage.setItem('bt_sr_off','1'); toast('Live dictation isn\'t available here — switched to AI dictation. Tap 🎤 again.'); }
+      if(hardErr){ localStorage.setItem('bt_sr_off','1'); toast('Live dictation isn\'t available here — switched to AI dictation. Keep talking.'); recordToggle(into,btn,lang,onDone); }
     };
-    try{ r.start(); }catch(e){ rec.sr=null; rec.live=false; btnRecState(btn,''); localStorage.setItem('bt_sr_off','1'); toast('Live dictation isn\'t available here — switched to AI dictation. Tap 🎤 again.'); }
+    try{ r.start(); }catch(e){ rec.sr=null; rec.live=false; btnRecState(btn,''); if(!resume){ localStorage.setItem('bt_sr_off','1'); toast('Live dictation isn\'t available here — switched to AI dictation. Keep talking.'); recordToggle(into,btn,lang,onDone); } }
   }
   function recordToggle(into,btn,lang,onDone){
-    if(rec.live){ if(rec.sr){ try{rec.sr.stop();}catch(e){} } else { try{rec.mr.stop();}catch(e){} } return; }
+    if(rec.live){ rec.userStop=true; if(rec.sr){ try{rec.sr.stop();}catch(e){} } else { try{rec.mr.stop();}catch(e){} } return; }
     if(rec.busy) return;
     rec.into=into;
     if(useLive()){ liveDictate(into,btn,lang||'en-US',onDone); return; }
@@ -1096,14 +1101,20 @@
       u.rate=lang==='ja-JP'?0.95:1; speechSynthesis.speak(u); }catch(e){} }
     if(speechSynthesis.speaking||speechSynthesis.pending){ speechSynthesis.cancel(); setTimeout(go,150); } else go();
   }
-  function tbMark(){ var ja=tbRead()==='ja'; document.getElementById('tbRead').textContent = ja ? '表示: 日本語' : 'Read in: English';
-    document.getElementById('tbTitle').textContent = ja ? '🎙 対面モード' : '🎙 In person'; }
+  var TBUI={ en:{title:'🎙 In person', send:'Send ↑', done:'✕ Done', hint:'Talk or type, fix anything, then Send', ph:'Words appear here — or type', busy:'Translating…', key:'Translating needs a Gemini key (⚙)'},
+              ja:{title:'🎙 対面モード', send:'送信 ↑', done:'✕ 終了', hint:'話すか入力して、直してから「送信」を押してください', ph:'ここに文字が表示されます。入力もできます', busy:'翻訳中…', key:'翻訳にはAIキーが必要です（⚙）'} };
+  function tbT(){ return TBUI[tbRead()]; }
+  function tbMark(){ var ja=tbRead()==='ja', T=tbT();
+    document.getElementById('tbRead').innerHTML = ja ? '<span style="opacity:.55">English</span> | <b>日本語</b>' : '<b>English</b> | <span style="opacity:.55">日本語</span>';
+    document.getElementById('tbTitle').textContent=T.title; document.getElementById('tbSend').textContent=T.send; document.getElementById('tbDone').textContent=T.done;
+    document.getElementById('tbHint').textContent=T.hint; document.getElementById('tbIn').placeholder=T.ph; }
   function tbSend(side){
     var ta=document.getElementById('tbIn'), v=ta.value.trim(); if(!v||tbBusy) return;
-    if(!side) side=isJaText(v)?'them':'me';
+    if(!side) side=tbDraftSide || (isJaText(v)?'them':'me');
+    tbDraftSide=null;
     var o=talkOther(), st=document.getElementById('tbStatus');
-    if(!liveOn()){ st.textContent='Translating needs a Gemini key (⚙) · 翻訳にはAIキーが必要です'; return; }
-    tbBusy=true; st.textContent=side==='me'?'Translating… · 翻訳中…':'翻訳中… · Translating…';
+    if(!liveOn()){ st.textContent=tbT().key; return; }
+    tbBusy=true; st.textContent=tbT().busy;
     var toJa=side==='me', noComment='no comments, no notes about spelling/grammar/politeness, no parentheses — ONLY the translation itself';
     var p = toJa
       ? 'Julian is speaking IN PERSON to '+o.name+'. Translate his English into natural spoken Japanese ('+REGDESC[register]+'), in his voice: '+voiceDesc()+'\nHe said: "'+v+'"\nReturn ONLY JSON: {"japanese":"the Japanese; readings in square brackets ONLY after kanji words, never after kana","back_translation":"faithful plain English — '+noComment+'"}'
@@ -1114,7 +1125,8 @@
       C().msgs.push(m); save(); ta.value=''; tbGrow(); st.textContent=''; renderThread(true);
     }).catch(function(e){ st.textContent='⚠ '+(e.message||String(e)); }).then(function(){ tbBusy=false; });
   }
-  function tbGrow(){ var ta=document.getElementById('tbIn'); ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight, Math.round(window.innerHeight*0.34))+'px'; ta.scrollTop=ta.scrollHeight;
+  var tbDraftSide=null;   // set by whichever 🎤 filled the box; typed-only text falls back to detecting Japanese
+  function tbGrow(){ var ta=document.getElementById('tbIn'); if(!ta.value.trim()) tbDraftSide=null; ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight, Math.round(window.innerHeight*0.34))+'px'; ta.scrollTop=ta.scrollHeight;
     document.getElementById('tbSend').disabled = !ta.value.trim(); }
   // after dictation stops: nothing is sent — the words wait in the box to be fixed, added to (tap the mic again), or sent
   function tbAfterDictation(){ tbGrow(); }
@@ -1123,16 +1135,14 @@
     var o=talkOther(), ja=o.lang==='ja', me=document.getElementById('tbMeMic'), th=document.getElementById('tbThemMic');
     me._label='🎤 Speak English'; me.textContent=me._label; me._ja=false;
     th._label=ja?'🎤 日本語で話す':'🎤 Speak ('+o.name+')'; th.textContent=th._label; th._ja=ja; th.style.background=o.color||'';
-    document.getElementById('tbIn').placeholder=ja?'Type in English or 日本語 · 入力もできます':'Type…';
-    document.getElementById('tbHint').textContent=ja?'Talk or type, fix anything, then Send · 話すか入力して、直してから「Send」':'Talk or type, fix anything, then Send';
-    tbGrow();
     document.getElementById('tbStatus').textContent='';
     talkMode=true; viewConvo.classList.add('talking'); demos.innerHTML=''; tbMark(); renderThread(true);
+    tbGrow();   // measure only once the bar is on screen
   }
-  function closeTalk(){ if(rec.live){ if(rec.sr){ try{rec.sr.stop();}catch(e){} } else { try{rec.mr.stop();}catch(e){} } } try{ speechSynthesis.cancel(); }catch(e){}
+  function closeTalk(){ if(rec.live){ rec.userStop=true; if(rec.sr){ try{rec.sr.stop();}catch(e){} } else { try{rec.mr.stop();}catch(e){} } } try{ speechSynthesis.cancel(); }catch(e){}
     talkMode=false; viewConvo.classList.remove('talking'); renderThread(true); renderSuggs(); }
-  document.getElementById('tbMeMic').onclick=function(){ ttsUnlock(); recordToggle(document.getElementById('tbIn'), this, 'en-US', tbAfterDictation); };
-  document.getElementById('tbThemMic').onclick=function(){ ttsUnlock(); recordToggle(document.getElementById('tbIn'), this, talkOther().lang==='ja'?'ja-JP':'en-US', tbAfterDictation); };
+  document.getElementById('tbMeMic').onclick=function(){ ttsUnlock(); if(!rec.live) tbDraftSide='me'; recordToggle(document.getElementById('tbIn'), this, 'en-US', tbAfterDictation); };
+  document.getElementById('tbThemMic').onclick=function(){ ttsUnlock(); if(!rec.live) tbDraftSide='them'; recordToggle(document.getElementById('tbIn'), this, talkOther().lang==='ja'?'ja-JP':'en-US', tbAfterDictation); };
   document.getElementById('tbSend').onclick=function(){ ttsUnlock(); tbSend(); };
   document.getElementById('tbIn').addEventListener('keydown',function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); ttsUnlock(); tbSend(); } });
   document.getElementById('tbRead').onclick=function(){ localStorage.setItem('bt_talk_read',tbRead()==='ja'?'en':'ja'); tbMark(); renderThread(); };
