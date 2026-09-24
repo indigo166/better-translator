@@ -88,6 +88,9 @@
   .inrow textarea::placeholder{color:var(--muted);}
   .send{width:38px; height:38px; border-radius:50%; background:var(--acc); color:#fff; border:none; display:flex; align-items:center; justify-content:center; font-size:19px; cursor:pointer; flex-shrink:0;}
   .send:disabled{opacity:.4;}
+  .micbtn{background:var(--acc-soft); color:var(--acc-ink); border:0.5px solid var(--wb-line); font-size:16px;}
+  .rec{animation:recpulse 1.2s ease-out infinite;}
+  @keyframes recpulse{0%{box-shadow:0 0 0 0 rgba(180,65,62,.55);}100%{box-shadow:0 0 0 12px rgba(180,65,62,0);}}
   .wbtab{text-align:center; font-size:12px; color:var(--muted); margin-top:9px; cursor:pointer;}
   .scrim{position:absolute; inset:0; background:rgba(0,0,0,.32); display:none; align-items:flex-end; z-index:20;}
   .scrim.on{display:flex;}
@@ -166,9 +169,9 @@
       <button class="chip" id="selCancel" style="background:none;color:var(--muted);">✕ cancel</button>
     </div>
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
-      <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
+      <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send micbtn" id="quickMic" title="Tap to talk">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v29 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v30 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -183,7 +186,7 @@
     <div class="composer">
       <div class="spkrow"><span class="lbl" id="spkLabel" style="margin:0">Speaking</span><div id="spkInline" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;overflow-x:auto;"></div></div>
       <div class="demos" id="demos"></div>
-      <div class="inrow"><textarea id="input" rows="1" placeholder="Say it in English…"></textarea><button class="send" id="micBtn" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="send" disabled>↑</button></div>
+      <div class="inrow"><textarea id="input" rows="1" placeholder="Say it in English…"></textarea><button class="send micbtn" id="micBtn" title="Tap to talk">🎤</button><button class="send" id="send" disabled>↑</button></div>
       <div class="wbtab" id="wbOpen2">⌃ ask the AI about this chat</div>
     </div>
   </div>
@@ -954,8 +957,21 @@
     }).then(function(tx){ var j=parseModelJSON(tx); return Array.isArray(j.messages)?j.messages:(Array.isArray(j)?j:[]); });
   }
   var rec={live:false, mr:null, chunks:[], busy:false};
-  function btnRecState(btn,state){ if(!btn)return; if(state==='rec'){ btn.textContent='■'; btn.style.background='#B4413E'; btn.style.color='#fff'; } else if(state==='busy'){ btn.textContent='…'; btn.style.background=''; btn.style.color=''; } else { btn.textContent='🎤'; btn.style.background='var(--card)'; btn.style.color='var(--muted)'; } }
+  // mic states are announced in the text box itself, so the person holding the phone always knows it's listening
+  function btnRecState(btn,state){ if(!btn)return; var f=rec.into;
+    if(btn._label===undefined) btn._label=btn.textContent;
+    if(f && f._ph===undefined) f._ph=f.placeholder;
+    btn.classList.toggle('rec',state==='rec');
+    if(state==='rec'){ btn.textContent='■'; btn.style.background='#B4413E'; btn.style.color='#fff'; if(f) f.placeholder=(uiLang()==='ja'?'聞いています… ■ をタップで停止':'Listening… tap ■ to stop'); }
+    else if(state==='busy'){ btn.textContent='…'; btn.style.background=''; btn.style.color=''; if(f) f.placeholder=(uiLang()==='ja'?'文字にしています…':'Writing down what you said…'); }
+    else { btn.textContent=btn._label; btn.style.background=''; btn.style.color=''; if(f && f._ph!==undefined){ f.placeholder=f._ph; delete f._ph; } } }
   function recordToggle(into,btn){
+    // say it BEFORE recording, not after a wasted recording: dictation needs an OpenAI key or a Gemini key on this device
+    if(!rec.live && !rec.busy && !cfg.oaKey && !(cfg.provider==='gemini' && cfg.key)){
+      alert(cfg.provider==='claude' ? 'The 🎤 needs a Gemini or OpenAI key (a Claude key can\'t transcribe audio). Add one in ⚙.' : 'The 🎤 needs a free Gemini key on this device. Tap ⚙, paste your key, then try again.');
+      return;
+    }
+    if(!rec.live && !rec.busy) rec.into=into;
     if(rec.live){ try{rec.mr.stop();}catch(e){} return; }
     if(rec.busy) return;
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ alert('This browser blocks microphone recording here. Wispr Flow / system dictation still works — focus the box and dictate.'); return; }
