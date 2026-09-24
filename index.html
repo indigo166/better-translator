@@ -168,7 +168,7 @@
     <div style="padding:9px 12px 4px; border-top:0.5px solid var(--line);">
       <div class="inrow"><textarea id="quickInput" rows="1" placeholder="Quick message — no contact needed…"></textarea><button class="send" id="quickMic" style="background:var(--card);color:var(--muted);border:0.5px solid var(--line);font-size:16px;">🎤</button><button class="send" id="quickGo" disabled>↑</button></div>
     </div>
-    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v28 · saved on this device</div>
+    <div style="padding:6px 15px 12px; font-size:11px; color:var(--muted); text-align:center;">prototype v29 · saved on this device</div>
   </div>
 
   <div class="view" id="viewConvo">
@@ -1205,7 +1205,8 @@
   // A curated file names its person: it lands in THAT person's 1:1 chat (person + chat created if missing), whichever chat
   // Import was opened from. Messages already present (same time + same Japanese) are skipped, so re-importing is safe.
   function importMessageFile(mf,statusEl){
-    var targetKey=cur, byDefault=C().parts[0];
+    var targetKey=cur, byDefault=(cur&&C())?C().parts[0]:null;
+    if(!(mf.person&&mf.person.name) && !targetKey){ statusEl.textContent='Open the chat to import into first.'; return; }
     if(mf.person && mf.person.name){
       var nm=String(mf.person.name).toLowerCase();
       var pid=listedPeople().filter(function(id){ return String(store.people[id].name||'').toLowerCase()===nm; })[0];
@@ -1488,6 +1489,27 @@
   if(cloud.on && cloudConfigured() && (Date.now()-(+localStorage.getItem('bt_cloud_last')||0))>6*3600000) setTimeout(function(){ cloudBackup(false).catch(function(){}); },5000);
 
   updateAiBadge(); renderChats();
+  // Two tabs of the app share one storage, but each holds its own in-memory copy — without this, a stale tab's next
+  // save silently wipes whatever the other tab added. When another tab writes, adopt its data.
+  window.addEventListener('storage',function(e){
+    if(e.key!==STORE_KEY || !e.newValue) return;
+    try{ store=JSON.parse(e.newValue); }catch(err){ return; }
+    if(cur && !store.convos[cur]){ cur=null; showView('chats'); }
+    if(viewConvo.classList.contains('on') && cur){ renderThread(); } else { renderChats(); }
+  });
+  // Local-copy-only import link: file:///…/index.html#bt-import=<base64url JSON message file>. Browsers never let a web
+  // page navigate to file://, so only something already running on this Mac can use it; the public site ignores it.
+  if(location.protocol==='file:' && /^#bt-import=/.test(location.hash)){
+    try{
+      var b64=location.hash.slice('#bt-import='.length).replace(/-/g,'+').replace(/_/g,'/');
+      var mfLink=JSON.parse(new TextDecoder().decode(b64ToU8(b64)));
+      history.replaceState(null,'',location.pathname);
+      if(mfLink && mfLink.app==='better-translator-messages' && Array.isArray(mfLink.messages)){
+        importMessageFile(mfLink,document.getElementById('importStatus'));
+        setTimeout(function(){ toast('⇩ '+document.getElementById('importStatus').textContent); },950);
+      }
+    }catch(err){ toast('Import link was unreadable: '+(err.message||err)); }
+  }
   // ask the browser to protect this origin's storage from eviction (chats + memories live here)
   if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function(){});
   // PWA: register the service worker (http/https only — file:// can't; localhost works). Makes it installable + offline-capable.
